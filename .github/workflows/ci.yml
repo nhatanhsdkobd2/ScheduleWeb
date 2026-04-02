@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+
+      - name: Frontend lint
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Frontend build
+        working-directory: frontend
+        run: npm run build
+
+      - name: Install backend deps
+        working-directory: backend
+        run: npm ci
+
+      - name: Backend typecheck
+        working-directory: backend
+        run: npm run typecheck
+
+      - name: Backend build
+        working-directory: backend
+        run: npm run build
+
+      - name: Backend smoke test
+        working-directory: backend
+        run: npm run test:smoke
+
+      - name: Backend perf test
+        working-directory: backend
+        run: npm run test:perf
+
+      - name: Backend contract test
+        working-directory: backend
+        run: npm run test:contract
+
+  deploy-staging:
+    if: github.ref == 'refs/heads/main'
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Staging deploy placeholder
+        run: echo "Staging auto deploy completed"
+
+  deploy-production:
+    if: github.event_name == 'workflow_dispatch'
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Production deploy placeholder
+        run: echo "Production deploy requires manual environment approval"
