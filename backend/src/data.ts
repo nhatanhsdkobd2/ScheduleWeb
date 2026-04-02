@@ -151,29 +151,33 @@ function seedDefaultProjects(): void {
   const existingCodes = new Set(projects.map((p) => p.projectCode));
   const firstMemberId = members[0]?.id ?? "";
 
+  let firstProjectId = "";
   DEFAULT_PROJECTS.forEach((project) => {
     if (!existingCodes.has(project.projectCode)) {
+      const newId = createId("p");
       projects.push({
         ...project,
-        id: createId("p"),
+        id: newId,
         ownerMemberId: firstMemberId || project.ownerMemberId,
       });
+      if (!firstProjectId) firstProjectId = newId;
     }
   });
-
-  // Seed demo tasks pointing to first project and member
-  const firstProjectId = projects[0]?.id ?? "";
-  const firstMember = members[0];
-  if (firstMember) {
+  if (!firstProjectId) firstProjectId = projects[0]?.id ?? "";
+  // Default to InnovaProSDK (INN-001) and Hoang Van Nhat Anh for demo tasks
+  const inn001Project = projects.find((p) => p.projectCode === "INN-001");
+  const demoProjectId = inn001Project?.id ?? firstProjectId;
+  const hoangVanNhatAnh = members.find((m) => m.fullName === "Hoàng Văn Nhật Anh") ?? members[0];
+  if (hoangVanNhatAnh) {
     const seededTaskCodes = new Set(tasks.map((t) => t.taskCode));
     DEMO_TASKS.forEach((demo) => {
-      if (!seededTaskCodes.has(demo.taskCode) && firstProjectId) {
+      if (!seededTaskCodes.has(demo.taskCode) && demoProjectId) {
         tasks.push({
           id: createId("t"),
           taskCode: demo.taskCode,
           title: demo.title,
-          projectId: firstProjectId,
-          assigneeMemberId: firstMember.id,
+          projectId: demoProjectId,
+          assigneeMemberId: hoangVanNhatAnh.id,
           dueDate: demo.dueDate,
           status: demo.status,
           priority: demo.priority,
@@ -184,13 +188,13 @@ function seedDefaultProjects(): void {
 
     // Seed demo project member assignment
     const existingPM = projectMembers.some(
-      (pm) => pm.projectId === firstProjectId && pm.memberId === firstMember.id,
+      (pm) => pm.projectId === demoProjectId && pm.memberId === hoangVanNhatAnh.id,
     );
-    if (!existingPM && firstProjectId) {
+    if (!existingPM && demoProjectId) {
       projectMembers.push({
         id: createId("pm"),
-        projectId: firstProjectId,
-        memberId: firstMember.id,
+        projectId: demoProjectId,
+        memberId: hoangVanNhatAnh.id,
         assignmentRole: "owner",
         allocationPercent: 100,
         assignedAt: nowIso(),

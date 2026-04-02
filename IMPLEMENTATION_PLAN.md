@@ -170,7 +170,10 @@ Duoi day la ke hoach trien khai chi tiet dua tren PRD. Moi muc co checklist [ ] 
 - [x] Assignment history timeline UI.
 - [x] Overdue highlight states.
 - [x] Fix filter desync bug: member filter phai cap nhat task list ngay lap tuc.
-- [ ] Thiet ke lai Task table voi inline editing: Project Type, Project Name, Task Description, Assigned to, Start, Days, Complete, Priority, Notes, Status — edit truc tiep ngay tren hang.
+- [x] Thiet ke lai Task table voi inline editing: Project Name, Task Description, Assigned to, Start, Days, Complete, Priority — edit truc tiep ngay tren hang. Bo cot Project Type, Notes, Status.
+- [x] Fix bug: Filter "all" (default) khong tra ve task nao — query phai truyen undefined khi filter = "all".
+- [x] Default project = InnovaProSDK, default assignee = Hoang Van Nhat Anh cho task demo (seed) va task moi.
+- [ ] Remove Status column khoi task table, filter bar, chart status distribution, va cac cho khac.
 
 ### 6.4 Scheduler module
 - [x] Integrate FullCalendar React.
@@ -183,7 +186,7 @@ Duoi day la ke hoach trien khai chi tiet dua tren PRD. Moi muc co checklist [ ] 
 
 ### 7.1 KPI & filters
 - [x] Date range filter (preset + custom).
-- [x] Team/project/member/status filters.
+- [x] Team/project/member/priority filters (khong co status).
 - [x] KPI cards (active members/projects/open/overdue).
 - [x] Loading/skeleton/empty states.
 - [x] Dong bo state filter giua table va chart (single source of truth).

@@ -166,24 +166,24 @@ Acceptance:
 ## FR-3 Task Scheduling & Assignment
 - Tao task voi title, description, priority, story_point(optional), due_date.
 - Gan task vao project va assignee.
-- Trang thai task: TODO, IN_PROGRESS, BLOCKED, DONE, CANCELED.
-- Cho phep re-assign task, track lich su thay doi.
 - Hien thi task tren calendar/scheduler theo week/month.
 - Canh bao task sap tre/da tre.
-- **Inline editing**: cac cot trong task table co the edit truc tiep ngay tren hang: Project Type, Project Name, Task Description, Assigned to, Start, Days, Complete, Priority, Notes, Status.
+- **Inline editing**: cac cot trong task table co the edit truc tiep ngay tren hang: Project Name, Task Description, Assigned to, Start, Days, Complete, Priority (khong co Status).
 
 Acceptance:
-- Task table hien thi cac cot: Project Type, Project Name, Task Description, Assigned to, Start, Days, Complete, Priority, Notes, Status.
+- Task table hien thi cac cot: Project Name, Task Description, Assigned to, Start, Days, Complete, Priority (khong co Status, khong co Project Type, khong co Notes).
+- Cot Task Description hien thi day du text, khong bi cat ngan boi do dai cot.
 - Cac cot co the edit truc tiep ngay tren hang (inline edit, khong can mo dialog Edit).
 - Inline edit thay doi gia tri -> goi mutation API cap nhat ngay lap tuc.
 - moi task bat buoc thuoc 1 project.
 - due_date >= created_date.
-- Mọi thay doi assignment/status duoc audit.
+- Mọi thay đổi assignment duoc audit.
+- **Default values**: Tat ca task demo (seed data) va task moi deu co default project = InnovaProSDK (INN-001), default assignee = Hoang Van Nhat Anh.
 
 ## FR-4 Weekly & Monthly Report Export
 - Weekly report:
   - Tong task tao moi, task done, task overdue.
-  - Breakdown theo member/project/status.
+  - Breakdown theo member/project/priority.
   - Top delay contributors.
 - Monthly report:
   - KPI tong hop va xu huong theo tuan trong thang.
@@ -223,13 +223,12 @@ Acceptance:
 - KPI cards:
   - Active members, Active projects, Open tasks, Overdue tasks.
 - Charts:
-  - Task status distribution (bar/pie).
   - Delay trend theo thang/quy/nam (line).
   - Workload by member/project (stacked bar).
   - Completion vs overdue theo period (combo chart).
   - Performance distribution (histogram/bar).
 - Interactive filters:
-  - Date range, team, project, member, status, priority.
+  - Date range, team, project, member, priority (khong co status).
 
 Acceptance:
 - Filter thay doi thi chart/KPI cap nhat dong bo.

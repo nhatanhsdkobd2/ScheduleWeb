@@ -158,11 +158,11 @@ export default function DashboardClient() {
     queryFn: () =>
       getTasksByFilters({
         search,
-        projectId: selectedProjectId,
-        memberId: selectedMemberId,
-        status: selectedStatus,
-        dateFrom,
-        dateTo,
+        projectId: selectedProjectId === "all" ? undefined : selectedProjectId,
+        memberId: selectedMemberId === "all" ? undefined : selectedMemberId,
+        status: selectedStatus === "all" ? undefined : selectedStatus,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
       }),
   });
   const weeklyQuery = useQuery<WeeklyReportRow[]>({ queryKey: ["weekly-rows"], queryFn: getWeeklyReportRows });
@@ -234,6 +234,16 @@ export default function DashboardClient() {
   const tasks = useMemo(() => tasksQuery.data ?? [], [tasksQuery.data]);
   const members = useMemo(() => membersQuery.data ?? [], [membersQuery.data]);
   const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data]);
+
+  /** Default IDs for new task creation */
+  const defaultProjectId = useMemo(
+    () => projects.find((p) => p.projectCode === "INN-001")?.id ?? projects[0]?.id ?? "",
+    [projects],
+  );
+  const defaultMemberId = useMemo(
+    () => members.find((m) => m.fullName === "Hoàng Văn Nhật Anh")?.id ?? members[0]?.id ?? "",
+    [members],
+  );
 
   const filteredMembers = useMemo(() => {
     return members
@@ -461,16 +471,6 @@ export default function DashboardClient() {
   ];
 
   const taskColumns: ColumnDef<TaskTableRow>[] = [
-    // Project Type — read-only lookup
-    {
-      id: "projectType",
-      header: "Project Type",
-      cell: ({ row }) => (
-        <Typography variant="body2" sx={{ minWidth: 100 }}>
-          {row.original.projectType}
-        </Typography>
-      ),
-    },
     // Project Name — read-only lookup
     {
       id: "projectName",
@@ -481,7 +481,7 @@ export default function DashboardClient() {
         </Typography>
       ),
     },
-    // Task Description — inline text, editable
+    // Task Description — inline text, editable, full display
     {
       id: "title",
       header: "Task Description",
@@ -495,7 +495,9 @@ export default function DashboardClient() {
           onChange={(e) =>
             updateTaskMutation.mutate({ id: row.original.id, payload: { title: e.target.value } })
           }
-          sx={{ "& input": { py: 0.5 } }}
+          sx={{
+            "& input": { py: 0.5, whiteSpace: "nowrap", overflow: "visible", textOverflow: "unset" },
+          }}
         />
       ),
     },
@@ -588,21 +590,6 @@ export default function DashboardClient() {
           <MenuItem value="high">High</MenuItem>
           <MenuItem value="critical">Critical</MenuItem>
         </TextField>
-      ),
-    },
-    // Notes — inline text (stored in title prefix or description — store as title note)
-    {
-      id: "notes",
-      header: "Notes",
-      cell: ({ row }) => (
-        <TextField
-          size="small"
-          variant="standard"
-          fullWidth
-          placeholder="—"
-          disabled={!canMutate}
-          sx={{ "& input": { py: 0.5 } }}
-        />
       ),
     },
     // Status — inline Select with overdue highlight
@@ -1000,8 +987,8 @@ export default function DashboardClient() {
                       setTaskForm({
                         taskCode: "",
                         title: "",
-                        projectId: projects[0]?.id ?? "",
-                        assigneeMemberId: members[0]?.id ?? "",
+                        projectId: defaultProjectId,
+                        assigneeMemberId: defaultMemberId,
                         dueDate: new Date().toISOString().slice(0, 10),
                         priority: "medium",
                       });
