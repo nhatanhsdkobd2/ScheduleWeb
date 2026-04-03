@@ -5,8 +5,6 @@ import { MenuItem, Stack, TextField } from "@mui/material";
 export interface FilterBarProps {
   selectedTeam: string;
   setSelectedTeam: (value: string) => void;
-  search: string;
-  setSearch: (value: string) => void;
 }
 
 const TEAMS = [
@@ -19,15 +17,9 @@ const TEAMS = [
   "Server API Team",
 ];
 
-export default function FilterBar({ selectedTeam, setSelectedTeam, search, setSearch }: FilterBarProps) {
+export default function FilterBar({ selectedTeam, setSelectedTeam }: FilterBarProps) {
   return (
     <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
-      <TextField
-        label="Search member/task"
-        value={search}
-        onChange={(event) => setSearch(event.target.value)}
-        size="small"
-      />
       <TextField
         label="Team filter"
         select

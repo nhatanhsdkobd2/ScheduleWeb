@@ -138,7 +138,6 @@ export default function DashboardClient() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
   const [activeTab, setActiveTab] = useState(0);
-  const [search, setSearch] = useState("");
   const [selectedTeam, setSelectedTeam] = useState("all");
   const [selectedRole, setSelectedRole] = useState<"admin" | "pm" | "lead" | "member">("lead");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -189,10 +188,9 @@ export default function DashboardClient() {
   const membersQuery = useQuery<Member[]>({ queryKey: ["members"], queryFn: getMembers });
   const projectsQuery = useQuery<Project[]>({ queryKey: ["projects"], queryFn: getProjects });
   const tasksQuery = useQuery<Task[]>({
-    queryKey: ["tasks", search, selectedProjectId, selectedMemberId, dateFrom, dateTo],
+    queryKey: ["tasks", selectedProjectId, selectedMemberId, dateFrom, dateTo],
     queryFn: () =>
       getTasksByFilters({
-        search,
         projectId: selectedProjectId === "all" ? undefined : selectedProjectId,
         memberId: selectedMemberId === "all" ? undefined : selectedMemberId,
         dateFrom: dateFrom || undefined,
@@ -279,9 +277,8 @@ export default function DashboardClient() {
     return members
       .filter((item) => (selectedTeam === "all" ? true : item.team === selectedTeam))
       .filter((item) => (selectedMemberId === "all" ? true : item.id === selectedMemberId))
-      .filter((item) => `${item.fullName} ${item.memberCode}`.toLowerCase().includes(search.toLowerCase()))
       .sort((a, b) => a.fullName.localeCompare(b.fullName));
-  }, [members, search, selectedTeam, selectedMemberId]);
+  }, [members, selectedTeam, selectedMemberId]);
   const filteredTasks = useMemo(() => {
     // Build set of member IDs that match current team filter
     const teamMemberIds =
@@ -300,10 +297,9 @@ export default function DashboardClient() {
       if (dateFrom && item.dueDate < dateFrom) return false;
       if (dateTo && item.dueDate > dateTo) return false;
       // Search filter
-      if (search.trim() && !`${item.taskCode} ${item.title}`.toLowerCase().includes(search.toLowerCase())) return false;
       return true;
     });
-  }, [tasks, members, search, selectedTeam, selectedProjectId, selectedMemberId, dateFrom, dateTo]);
+  }, [tasks, members, selectedTeam, selectedProjectId, selectedMemberId, dateFrom, dateTo]);
 
   /** Derived rows for Task table */
   const taskTableRows = useMemo<TaskTableRow[]>(() => {
@@ -780,7 +776,7 @@ export default function DashboardClient() {
             {/* Filter — Tasks tab only */}
             {activeTab === 3 && (
               <>
-                <FilterBar selectedTeam={selectedTeam} setSelectedTeam={setSelectedTeam} search={search} setSearch={setSearch} />
+                <FilterBar selectedTeam={selectedTeam} setSelectedTeam={setSelectedTeam} />
                 <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
                   <ProjectSelect value={selectedProjectId} onChange={setSelectedProjectId} projects={projects} />
                   <TextField
@@ -806,7 +802,7 @@ export default function DashboardClient() {
             {/* Filter — Members tab: Search + Team + Member only */}
             {activeTab === 1 && (
               <>
-                <FilterBar selectedTeam={selectedTeam} setSelectedTeam={setSelectedTeam} search={search} setSearch={setSearch} />
+                <FilterBar selectedTeam={selectedTeam} setSelectedTeam={setSelectedTeam} />
                 <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
                   <TextField
                     select
