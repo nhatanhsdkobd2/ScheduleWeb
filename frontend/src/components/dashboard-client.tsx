@@ -25,13 +25,10 @@ import {
   Tooltip as MuiTooltip,
   Typography,
 } from "@mui/material";
-import { useMemo, useState } from "react";
-import FullCalendar from "@fullcalendar/react";
-import dayGridPlugin from "@fullcalendar/daygrid";
-import interactionPlugin from "@fullcalendar/interaction";
+import { useMemo, useState, useEffect } from "react";
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Member, Project, Task, WeeklyReportRow } from "@shared/types/domain";
+import type { Member, Project, Task } from "@shared/types/domain";
 import {
   createTask,
   createMember,
@@ -41,7 +38,6 @@ import {
   getMembers,
   getProjects,
   getTasksByFilters,
-  getWeeklyReportRows,
   updateProject,
   updateTask,
   updateMember,
@@ -61,10 +57,15 @@ function priorityLabel(priority: Task["priority"]): string {
   return "Low";
 }
 
-/** Format date as "Mon-DD-YYYY", e.g. "Apr-04-2026" */
+/** Format date as "Mon-DD-YYYY", e.g. "Apr-04-2026" — locale-fixed for SSR/CSR consistency */
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr);
-  return d.toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" });
+  if (isNaN(d.getTime())) return "—";
+  const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const m = MONTHS[d.getMonth()];
+  const day = String(d.getDate()).padStart(2, "0");
+  const y = d.getFullYear();
+  return `${m}-${day}-${y}`;
 }
 
 /** Enriched row type for the task table */
@@ -84,6 +85,8 @@ interface TaskTableRow {
 
 export default function DashboardClient() {
   const queryClient = useQueryClient();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
   const [activeTab, setActiveTab] = useState(0);
   const [search, setSearch] = useState("");
   const [selectedTeam, setSelectedTeam] = useState("all");
@@ -121,7 +124,7 @@ export default function DashboardClient() {
     fullName: "",
     email: "",
     role: "member",
-    team: "Platform",
+    team: "Mobile Team",
     status: "active",
   });
   const [taskForm, setTaskForm] = useState<Omit<Task, "id" | "status" | "taskCode">>({
@@ -130,7 +133,7 @@ export default function DashboardClient() {
     assigneeMemberId: "",
     dueDate: "",
     priority: "medium",
-    plannedStartDate: new Date().toISOString().slice(0, 10),
+    plannedStartDate: "",
   });
 
   const membersQuery = useQuery<Member[]>({ queryKey: ["members"], queryFn: getMembers });
@@ -146,7 +149,6 @@ export default function DashboardClient() {
         dateTo: dateTo || undefined,
       }),
   });
-  const weeklyQuery = useQuery<WeeklyReportRow[]>({ queryKey: ["weekly-rows"], queryFn: getWeeklyReportRows });
 
   const canMutate = selectedRole !== "member";
 
@@ -180,8 +182,11 @@ export default function DashboardClient() {
   const updateTaskMutation = useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: Partial<Omit<Task, "id">> }) => updateTask(id, payload),
     onSuccess: () => {
-      setTaskDrawerOpen(false);
       void queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      // Only close drawer when editing an existing task (not inline cell edits)
+      if (editTask !== null) {
+        setTaskDrawerOpen(false);
+      }
     },
   });
   const createProjectMutation = useMutation({
@@ -206,14 +211,13 @@ export default function DashboardClient() {
     },
   });
 
-  const reportRows = weeklyQuery.data ?? [];
   const tasks = useMemo(() => tasksQuery.data ?? [], [tasksQuery.data]);
   const members = useMemo(() => membersQuery.data ?? [], [membersQuery.data]);
   const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data]);
 
   /** Default IDs for new task creation */
   const defaultProjectId = useMemo(
-    () => projects.find((p) => p.projectCode === "INN-001")?.id ?? projects[0]?.id ?? "",
+    () => projects.find((p) => p.name === "RSPro Production")?.id ?? projects[0]?.id ?? "",
     [projects],
   );
   const defaultMemberId = useMemo(
@@ -229,12 +233,27 @@ export default function DashboardClient() {
       .sort((a, b) => a.fullName.localeCompare(b.fullName));
   }, [members, search, selectedTeam, selectedMemberId]);
   const filteredTasks = useMemo(() => {
-    // When search is empty, show all tasks; otherwise filter by title/taskCode
-    if (!search.trim()) return tasks;
-    return tasks.filter((item) =>
-      `${item.taskCode} ${item.title}`.toLowerCase().includes(search.toLowerCase()),
-    );
-  }, [tasks, search]);
+    // Build set of member IDs that match current team filter
+    const teamMemberIds =
+      selectedTeam === "all"
+        ? null
+        : new Set(members.filter((m) => m.team === selectedTeam).map((m) => m.id));
+
+    return tasks.filter((item) => {
+      // Team filter: check via member
+      if (teamMemberIds && !teamMemberIds.has(item.assigneeMemberId)) return false;
+      // Project filter
+      if (selectedProjectId !== "all" && item.projectId !== selectedProjectId) return false;
+      // Member filter
+      if (selectedMemberId !== "all" && item.assigneeMemberId !== selectedMemberId) return false;
+      // Date range filter
+      if (dateFrom && item.dueDate < dateFrom) return false;
+      if (dateTo && item.dueDate > dateTo) return false;
+      // Search filter
+      if (search.trim() && !`${item.taskCode} ${item.title}`.toLowerCase().includes(search.toLowerCase())) return false;
+      return true;
+    });
+  }, [tasks, members, search, selectedTeam, selectedProjectId, selectedMemberId, dateFrom, dateTo]);
 
   /** Derived rows for Task table */
   const taskTableRows = useMemo<TaskTableRow[]>(() => {
@@ -242,9 +261,12 @@ export default function DashboardClient() {
       const project = projects.find((p) => p.id === task.projectId);
       const member = members.find((m) => m.id === task.assigneeMemberId);
       const dueMs = new Date(task.dueDate).getTime();
-      // Use plannedStartDate if set, otherwise default to today
-      const startDateStr = task.plannedStartDate ?? new Date().toISOString().slice(0, 10);
-      const days = Math.ceil((dueMs - new Date(startDateStr).getTime()) / 86400000);
+      // Use plannedStartDate if set; if not, use today only after mount (avoids hydration mismatch)
+      // During SSR / before mount, fallback to empty string → format shows "Invalid Date" but harmless
+      const startDateStr = task.plannedStartDate ?? (mounted ? new Date().toISOString().slice(0, 10) : "");
+      const days = mounted && startDateStr
+        ? Math.ceil((dueMs - new Date(startDateStr).getTime()) / 86400000)
+        : 0;
       // Progress: completedAt => 100, otherwise stored progress or 0
       const progress = task.completedAt ? 100 : (task.progress ?? 0);
       return {
@@ -253,7 +275,7 @@ export default function DashboardClient() {
         title: task.title,
         projectName: project?.name ?? "—",
         assigneeName: member?.fullName ?? "—",
-        startDate: formatDate(startDateStr),
+        startDate: mounted ? formatDate(startDateStr || task.dueDate) : formatDate(task.dueDate),
         days,
         completeDate: formatDate(task.dueDate),
         priority: priorityLabel(task.priority),
@@ -261,11 +283,13 @@ export default function DashboardClient() {
         raw: task,
       };
     });
-  }, [filteredTasks, projects, members]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredTasks, projects, members, mounted]);
 
   const summary = useMemo(() => {
+    const today = mounted ? new Date() : null;
     const openTasks = filteredTasks.filter((task) => !(task.completedAt || task.progress === 100));
-    const overdueTasks = openTasks.filter((task) => new Date(task.dueDate) < new Date()).length;
+    const overdueTasks = today ? openTasks.filter((task) => new Date(task.dueDate) < today).length : 0;
     const activeProjects =
       selectedProjectId === "all"
         ? projects.filter((project) => project.status === "active").length
@@ -276,7 +300,7 @@ export default function DashboardClient() {
       openTasks: openTasks.length,
       overdueTasks,
     };
-  }, [filteredMembers, filteredTasks, projects, selectedProjectId]);
+  }, [filteredMembers, filteredTasks, projects, selectedProjectId, mounted]);
 
   const delayTrendData = useMemo(() => {
     const monthMap = new Map<string, { delayedTasks: number; totalDelay: number; count: number }>();
@@ -302,9 +326,10 @@ export default function DashboardClient() {
   }, [filteredTasks]);
 
   const performanceChartData = useMemo(() => {
+    const now = mounted ? new Date() : null;
     return filteredMembers.map((member) => {
       const ownTasks = filteredTasks.filter((task) => task.assigneeMemberId === member.id);
-      const overdueCount = ownTasks.filter((task) => !task.completedAt && new Date(task.dueDate) < new Date()).length;
+      const overdueCount = now ? ownTasks.filter((task) => !task.completedAt && new Date(task.dueDate) < now).length : 0;
       const avgDelayDays =
         ownTasks.length === 0
           ? 0
@@ -322,26 +347,30 @@ export default function DashboardClient() {
         avgDelayDays: Number(avgDelayDays.toFixed(2)),
       };
     });
-  }, [filteredMembers, filteredTasks]);
+  }, [filteredMembers, filteredTasks, mounted]);
   const workloadByMember = useMemo(() => {
     const map = new Map<string, number>();
-    for (const item of tasks) {
+    for (const item of filteredTasks) {
       map.set(item.assigneeMemberId, (map.get(item.assigneeMemberId) ?? 0) + 1);
     }
     return members.map((member) => ({ name: member.fullName, tasks: map.get(member.id) ?? 0 }));
-  }, [members, tasks]);
-  const calendarEvents = useMemo(
-    () =>
-      tasks.map((task) => ({
-        id: task.id,
-        title: task.title,
-        date: task.dueDate,
-      })),
-    [tasks],
-  );
+  }, [members, filteredTasks]);
+
+  /** Overdue chips — only compute after mount to avoid hydration mismatch */
+  const overdueChips = useMemo(() => {
+    if (!mounted) return null;
+    const today = new Date();
+    return taskTableRows
+      .filter((row) => row.raw.progress !== 100 && new Date(row.raw.dueDate) < today)
+      .slice(0, 6)
+      .map((row) => (
+        <Chip key={row.id} color="error" size="small" label={`${row.taskCode} overdue`} />
+      ));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taskTableRows, mounted]);
   if (membersQuery.error || projectsQuery.error || tasksQuery.error) {
     return (
-      <Container sx={{ py: 4 }}>
+      <Container suppressHydrationWarning sx={{ py: 4 }}>
         <Typography color="error">Khong the tai du lieu. Hay chay backend tai cong 4000.</Typography>
       </Container>
     );
@@ -349,7 +378,7 @@ export default function DashboardClient() {
 
   if (membersQuery.isLoading || projectsQuery.isLoading || tasksQuery.isLoading) {
     return (
-      <Container sx={{ py: 4 }}>
+      <Container suppressHydrationWarning sx={{ py: 4 }}>
         <Stack direction="row" spacing={2} alignItems="center">
           <CircularProgress size={24} />
           <Typography>Dang tai dashboard...</Typography>
@@ -566,6 +595,15 @@ export default function DashboardClient() {
       cell: ({ row }) => {
         const progress = row.original.progress;
         const dueDate = new Date(row.original.raw.dueDate);
+        // Avoid hydration mismatch: compute overdue only after mount
+        if (!mounted) {
+          return (
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 140 }}>
+              <Typography variant="body2" fontWeight={700}>{progress}%</Typography>
+              <LinearProgress variant="determinate" value={progress} sx={{ flex: 1, height: 7, borderRadius: 3, bgcolor: "grey.200" }} />
+            </Box>
+          );
+        }
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const isOverdue = progress < 100 && dueDate < today;
@@ -609,7 +647,7 @@ export default function DashboardClient() {
               type="number"
               size="small"
               variant="standard"
-              value={progress}
+              value={String(progress)}
               disabled={!canMutate}
               inputProps={{ min: 0, max: 100, style: { width: 44, textAlign: "center", padding: "4px 2px" } }}
               onChange={(e) => {
@@ -664,8 +702,33 @@ export default function DashboardClient() {
         </AppBar>
         <Container sx={{ py: 4 }}>
           <Stack spacing={3}>
-            {/* Filter — Dashboard & Tasks tabs: full filters */}
-            {(activeTab === 0 || activeTab === 3) && (
+            {/* Filter — Dashboard tab: Due from / Due to only */}
+            {activeTab === 0 && (
+              <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
+                <TextField
+                  select
+                  label="Team filter"
+                  size="small"
+                  value={selectedTeam}
+                  onChange={(e) => setSelectedTeam(e.target.value)}
+                  sx={{ minWidth: 180 }}
+                >
+                  <MenuItem value="all">All teams</MenuItem>
+                  <MenuItem value="Mobile Team">Mobile Team</MenuItem>
+                  <MenuItem value="OS Team">OS Team</MenuItem>
+                  <MenuItem value="Tester Team">Tester Team</MenuItem>
+                  <MenuItem value="Tablet Team">Tablet Team</MenuItem>
+                  <MenuItem value="Web Team">Web Team</MenuItem>
+                  <MenuItem value="Passthrough Team">Passthrough Team</MenuItem>
+                  <MenuItem value="Server API Team">Server API Team</MenuItem>
+                </TextField>
+                <TextField label="Due from" size="small" type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} InputLabelProps={{ shrink: true }} />
+                <TextField label="Due to" size="small" type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} InputLabelProps={{ shrink: true }} />
+              </Stack>
+            )}
+
+            {/* Filter — Tasks tab only */}
+            {activeTab === 3 && (
               <>
                 <FilterBar selectedTeam={selectedTeam} setSelectedTeam={setSelectedTeam} search={search} setSearch={setSearch} />
                 <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
@@ -786,55 +849,6 @@ export default function DashboardClient() {
             </Card>
           </Grid>
         </Grid>
-
-        <Card variant="outlined" sx={{ p: 2 }}>
-          <Typography variant="h6" sx={{ mb: 2 }}>
-            Task Schedule (Month View)
-          </Typography>
-          <FullCalendar
-            plugins={[dayGridPlugin, interactionPlugin]}
-            initialView="dayGridMonth"
-            headerToolbar={{
-              left: "prev,next today",
-              center: "title",
-              right: "dayGridMonth,dayGridWeek",
-            }}
-            events={calendarEvents}
-            eventClick={(eventInfo) => {
-              window.alert(`Task: ${eventInfo.event.title}`);
-            }}
-          />
-        </Card>
-
-        <Card variant="outlined" sx={{ p: 2 }}>
-          <Typography variant="h6" sx={{ mb: 2 }}>
-            Weekly Report Snapshot
-          </Typography>
-          <Box sx={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr>
-                  <th align="left">Member</th>
-                  <th align="right">Assigned</th>
-                  <th align="right">Done</th>
-                  <th align="right">Overdue</th>
-                  <th align="right">Avg Delay Days</th>
-                </tr>
-              </thead>
-              <tbody>
-                {reportRows.map((row) => (
-                  <tr key={row.memberName}>
-                    <td>{row.memberName}</td>
-                    <td align="right">{row.assigned}</td>
-                    <td align="right">{row.done}</td>
-                    <td align="right">{row.overdue}</td>
-                    <td align="right">{row.avgDelayDays}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </Box>
-        </Card>
               </>
             ) : null}
 
@@ -897,13 +911,14 @@ export default function DashboardClient() {
                     disabled={!canMutate}
                     onClick={() => {
                       setEditTask(null);
+                      const today = mounted ? new Date().toISOString().slice(0, 10) : "";
                       setTaskForm({
                         title: "",
                         projectId: defaultProjectId,
                         assigneeMemberId: defaultMemberId,
-                        dueDate: new Date().toISOString().slice(0, 10),
+                        dueDate: today,
                         priority: "medium",
-                        plannedStartDate: new Date().toISOString().slice(0, 10),
+                        plannedStartDate: today,
                       });
                       setTaskErrors({});
                       setTaskDrawerOpen(true);
@@ -916,12 +931,7 @@ export default function DashboardClient() {
                 {taskTableRows.length === 0 ? <Alert severity="info">Khong co task phu hop voi filter hien tai.</Alert> : null}
                 <Stack direction="row" spacing={1}>
                   <Typography variant="body2">Overdue highlights:</Typography>
-                  {taskTableRows
-                    .filter((row) => row.raw.progress !== 100 && new Date(row.raw.dueDate) < new Date())
-                    .slice(0, 6)
-                    .map((row) => (
-                      <Chip key={row.id} color="error" size="small" label={`${row.taskCode} overdue`} />
-                    ))}
+                  {overdueChips}
                 </Stack>
               </>
             ) : null}
@@ -949,11 +959,20 @@ export default function DashboardClient() {
             />
             <TextField
               label="Team"
+              select
               value={memberForm.team}
               onChange={(e) => setMemberForm((s) => ({ ...s, team: e.target.value }))}
               error={Boolean(memberErrors.team)}
               helperText={memberErrors.team}
-            />
+            >
+              <MenuItem value="Mobile Team">Mobile Team</MenuItem>
+              <MenuItem value="OS Team">OS Team</MenuItem>
+              <MenuItem value="Tester Team">Tester Team</MenuItem>
+              <MenuItem value="Tablet Team">Tablet Team</MenuItem>
+              <MenuItem value="Web Team">Web Team</MenuItem>
+              <MenuItem value="Passthrough Team">Passthrough Team</MenuItem>
+              <MenuItem value="Server API Team">Server API Team</MenuItem>
+            </TextField>
             <TextField select label="Role" value={memberForm.role} onChange={(e) => setMemberForm((s) => ({ ...s, role: e.target.value as Member["role"] }))}>
               <MenuItem value="admin">admin</MenuItem>
               <MenuItem value="pm">pm</MenuItem>

@@ -639,6 +639,36 @@ Standards:
 4. Muc do chi tiet report PDF can bao gom chart embeddable den dau?
 5. Muc tieu quy mo data sau 6-12 thang (so task/member/project) de chot strategy index/partition?
 
+## 17) Open Bug Tracker
+
+### BUG-TRACKING v2 (Session 2026-04-03)
+
+| # | Bug | Severity | Root Cause | Fix Required |
+|---|-----|----------|-----------|--------------|
+| B-21 | Tab Task: nut "Add task" khong mo duoc drawer | CRITICAL | `updateTaskMutation.onSuccess` goi `setTaskDrawerOpen(false)` — khi tao task moi (editTask=null), mutation thanh cong nhung drawer dong ngay, tao cam giac "khong hoat dong" | ✅ Đã fix: chi goi `setTaskDrawerOpen(false)` khi `editTask !== null`. Nguyen nhan goc: backend cua project `/ScheduleWeb/` chay tren port 4000 thay vi `/ScheduleWebNew/` |
+| B-22 | Cot Progress %: TextField nhap so khong nhan gia tri | HIGH | `TextField type="number"` voi `value={progress}` (number) — gia tri luon la so, onChange xu ly dung nhung MUI TextField type="number" van can controlled value phai la string | ✅ Đã fix: `value={String(progress)}` |
+| B-23 | Cot Project Name: khong hien thi gia tri default khi tao task moi | MEDIUM | `defaultProjectId` tim `INN-001` nhung PRD section 8.0 yeu cau default = `RSPro Production` | ✅ Đã fix: lookup `name === "RSPro Production"` |
+| B-24 | Cot Start Day: inline edit khong luu gia tri moi | HIGH | `updateTaskMutation.onSuccess` goi `setTaskDrawerOpen(false)` — tat ca mutation deu dong drawer, gia tri moi chua hien thi da bi reset | ✅ Đã fix: guard `editTask !== null` |
+| B-25 | Cot Project Name (inline edit): gia tri moi khong luu | MEDIUM | Cung root cause nhu B-24 | ✅ Đã fix: guard `editTask !== null` |
+| B-26 | Hydration mismatch error: SSR/CSR Date.now() khong khop | HIGH | `new Date()` goi trong component body (useState initializer, useMemo, column cell render) — gia tri server va client khac nhau | ✅ Đã fix: them `useEffect` + `mounted` state; tat ca `new Date()` chi goi sau khi client mount. Bao gom: taskForm init, taskTableRows, summary, overdue highlights, Progress cell |
+| B-27 | Tab Dashboard: Task Schedule (Month View) khong su dung | LOW | FullCalendar Month View chi la anh huong, khong co chuc nang thuc su | ✅ Đã loai bo: xoa Card FullCalendar, xoa `calendarEvents` useMemo, xoa import FullCalendar |
+| B-28 | Tab Dashboard: Weekly Report Snapshot khong su dung | LOW | Bang weekly report khong can thiet tren Dashboard | ✅ Đã loai bo: xoa Card Weekly Report, xoa `weeklyQuery`, xoa `reportRows`, xoa import `getWeeklyReportRows` |
+| B-29 | Tab Dashboard: Filter Search/Team/Project hien thi thua | LOW | Filter section su dung `(activeTab === 0 \|\| activeTab === 3)` — hien thi o ca Dashboard va Tasks | ✅ Đã fix: doi thanh `activeTab === 3` (chi hien thi o Tasks tab); Filter Dashboard chi con Due from / Due to |
+| B-30 | Member Team Assignment: cac thanh vien chua duoc phan bo dung team | MEDIUM | Seed data backend tat ca member deu co `team: "Platform"` — khong dung voi cau truc thuc te | ✅ Đã fix backend: `seedDefaultMembers()` chi dinh nghia `MEMBER_TEAMS` map; cac team: Mobile Team, OS Team, Tester Team, Tablet Team, Web Team, Passthrough Team, Server API Team |
+| B-31 | FilterBar: Team filter hien thi "Platform" va "Product" thay vi 7 teams thuc te | MEDIUM | `filter-bar.tsx` hardcode `MenuItem` chi chua "Platform" va "Product" | ✅ Đã fix: thay `MenuItem` bang 7 teams that (Mobile Team, OS Team, Tester Team, Tablet Team, Web Team, Passthrough Team, Server API Team) |
+| B-32 | Remove member "Trần Lộc" khoi seed data | LOW | Member "Trần Lộc" khong con su dung | ✅ Đã xoa khoi `DEFAULT_MEMBER_NAMES` backend |
+| B-33 | Add Member: Team field la TextField tu nhap, can doi thanh Select dropdown | MEDIUM | `dashboard-client.tsx` Add/Edit Member dialog: `TextField` team thay bang `TextField select` voi 7 team options | ✅ Đã fix: doi `TextField` thanh `TextField select`, danh sach 7 teams |
+| B-34 | Email format khong dung: can cap nhat thanh `ho.ten@vn.innova.com` | MEDIUM | Email seed data dang la format cu `ho.vans.ten@innova.com` | ✅ Đã fix: backend `normalizeEmail()` tra ve `{lastName}.{initials}@vn.innova.com`, vd: anh.hoang@vn.innova.com |
+| B-35 | Tab Task: Team Filter chua co | LOW | Tasks tab filter section co FilterBar nhung user chua nhan thay — can dam bao Team Filter hien thi | ✅ FilterBar da co Team Filter cho Tasks tab; dam bao FilterBar render dung |
+| B-36 | Workload by Member chart khong dong bo voi date filter | MEDIUM | `workloadByMember` useMemo khong apply filters (dateFrom, dateTo, selectedProjectId, selectedMemberId) | ✅ Đã fix: `workloadByMember` chi tinh task count theo filter hien tai |
+| B-37 | Tab Tasks: Team Filter khong hoat dong | HIGH | `filteredTasks` useMemo chi filter theo `search`, khong filter theo `selectedTeam` | ✅ Đã fix: `filteredTasks` apply tat ca filters: selectedProjectId, selectedMemberId, dateFrom, dateTo, selectedTeam |
+| B-38 | Tab Dashboard: thieu Team Filter | LOW | Dashboard chi co Due from/Due to, chua co Team Filter | ✅ Đã fix: them Team Filter dropdown vao Dashboard filter section |
+| B-39 | Tasks tab: tat ca task deu gan cho 1 member (Hoang Van Nhat Anh) | MEDIUM | Demo tasks seed chi assign cho Hoang Van Nhat Anh — can spread ra cac member theo team | ✅ Đã fix backend: DEMO_TASKS assign cho 8 members khac nhau theo team |
+| B-40 | Task Description bi cat/truncate | MEDIUM | `TableCell` co `max-width` mac dinh, TextField `flexGrow` khong hoat dong trong table cell | ✅ Đã fix: dat `minWidth: 0` cho TextField description, `TableCell` co `style={{ whiteSpace: "normal" }}` |
+| B-41 | React duplicate key error: `.$.1=2$p-...` | HIGH | `createId()` dùng `Date.now()` + `Math.random()` — khi backend HMR reload hoặc restart nhanh, `Date.now()` trùng + random trùng → ID trùng → React key trùng trong project-select (MenuItem) và member-select (MenuItem) | ✅ Đã fix: thêm module-level counter vào `createId`: `${prefix}-${Date.now()}-${counter++}` đảm bảo ID luôn unique dù `Date.now()` trùng |
+
+**Fix constraint:** `setTaskDrawerOpen(false)` chi duoc goi trong `updateTaskMutation.onSuccess` khi `editTask !== null`. Tat ca inline cell mutations (Progress, Start Day, Project Name, Priority, Assignee, Title, Complete date) phai loai bo `setTaskDrawerOpen(false)`.
+
 ## 17) Final Recommendation Summary
 
 - Product direction: operational + analytical dashboard ket hop, tap trung tinh hanh dong.

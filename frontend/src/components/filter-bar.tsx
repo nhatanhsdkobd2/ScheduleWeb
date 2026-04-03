@@ -9,6 +9,16 @@ export interface FilterBarProps {
   setSearch: (value: string) => void;
 }
 
+const TEAMS = [
+  "Mobile Team",
+  "OS Team",
+  "Tester Team",
+  "Tablet Team",
+  "Web Team",
+  "Passthrough Team",
+  "Server API Team",
+];
+
 export default function FilterBar({ selectedTeam, setSelectedTeam, search, setSearch }: FilterBarProps) {
   return (
     <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
@@ -27,8 +37,11 @@ export default function FilterBar({ selectedTeam, setSelectedTeam, search, setSe
         sx={{ minWidth: 180 }}
       >
         <MenuItem value="all">All teams</MenuItem>
-        <MenuItem value="Platform">Platform</MenuItem>
-        <MenuItem value="Product">Product</MenuItem>
+        {TEAMS.map((team) => (
+          <MenuItem key={team} value={team}>
+            {team}
+          </MenuItem>
+        ))}
       </TextField>
     </Stack>
   );

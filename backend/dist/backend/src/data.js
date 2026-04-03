@@ -1,6 +1,40 @@
 export const members = [];
 export const projects = [];
 // ── Default member seed data ───────────────────────────────────────────────
+const MEMBER_TEAMS = {
+    // Mobile Team
+    "Châu Gia Kiên": "Mobile Team",
+    "Hoàng Văn Nhật Anh": "Mobile Team",
+    "Trần Nguyễn Hoàng Diễn": "Mobile Team",
+    "Nguyễn Phước Thọ": "Mobile Team",
+    "Nguyễn Quang Cảnh": "Mobile Team",
+    "Trương Việt Hưng": "Mobile Team",
+    // OS Team
+    "Lê Quang Duy": "OS Team",
+    // Tester Team
+    "Lê Nguyễn Thục Nhi": "Tester Team",
+    // Tablet Team
+    "Lê Văn Thiện": "Tablet Team",
+    "Nguyễn Mạnh Hiếu": "Tablet Team",
+    "Nguyễn Quang Trí": "Tablet Team",
+    "Phạm Kim Chấn Nguyên": "Tablet Team",
+    // Web Team
+    "Lương Nguyễn Bảo Châu": "Web Team",
+    "Nguyễn Minh Kha": "Web Team",
+    "Nguyễn Ngọc Bảo Kha": "Web Team",
+    "Nguyễn Nhật Hào": "Web Team",
+    // Passthrough Team
+    "Nguyễn Thanh Huy": "Passthrough Team",
+    "Lê Bùi Hải Uyên": "Passthrough Team",
+    "Trần Hữu Quang Trường": "Passthrough Team",
+    "Nguyễn Lê Tân Thành": "Passthrough Team",
+    "Nguyễn Thái Dương": "Passthrough Team",
+    // Server API Team (remaining members)
+    "Lê Bá Kha": "Server API Team",
+    "Nguyễn Phúc Bảo Phát": "Server API Team",
+    "Phan Văn Nguyên": "Server API Team",
+    "Trần Đình Anh Hùng": "Server API Team",
+};
 const DEFAULT_MEMBER_NAMES = [
     "Châu Gia Kiên",
     "Hoàng Văn Nhật Anh",
@@ -25,12 +59,30 @@ const DEFAULT_MEMBER_NAMES = [
     "Phan Văn Nguyên",
     "Trần Đình Anh Hùng",
     "Trần Hữu Quang Trường",
-    "Trần Lộc",
     "Trần Nguyễn Hoàng Diễn",
     "Trương Việt Hưng",
 ];
+function stripDiacritics(str) {
+    return str
+        .replace(/[àáạảãâầấậẩẫăằắặẳẵ]/gi, "a")
+        .replace(/[èéẹẻẽêềếệểễ]/gi, "e")
+        .replace(/[ìíịỉĩ]/gi, "i")
+        .replace(/[òóọỏõôồốộổỗưỡơờớợởỡ]/gi, "o")
+        .replace(/[ùúụủũưừứựửữ]/gi, "u")
+        .replace(/[ỳýỵỷỹ]/gi, "y")
+        .replace(/đ/gi, "d")
+        .replace(/Đ/gi, "D");
+}
 function normalizeEmail(fullName) {
-    return fullName.toLowerCase().replace(/\s+/g, ".") + "@innova.com";
+    // Format: {lastName}.{firstName}@vn.innova.com
+    // e.g. "Hoàng Văn Nhật Anh" -> "anh.hoang@vn.innova.com"
+    const parts = fullName.trim().split(/\s+/);
+    if (parts.length < 2) {
+        return stripDiacritics(fullName).toLowerCase().replace(/\s+/g, "") + "@vn.innova.com";
+    }
+    const lastName = stripDiacritics(parts[parts.length - 1] ?? "").toLowerCase();
+    const firstName = stripDiacritics(parts[0] ?? "").toLowerCase();
+    return `${lastName}.${firstName}@vn.innova.com`;
 }
 // ── Default project seed data ──────────────────────────────────────────────
 const DEFAULT_PROJECTS = [
@@ -107,7 +159,7 @@ function seedDefaultMembers() {
                 fullName,
                 email,
                 role: "member",
-                team: "Platform",
+                team: MEMBER_TEAMS[fullName] ?? "Server API Team",
                 status: "active",
             });
         }
@@ -136,39 +188,56 @@ function seedDefaultProjects() {
     });
     if (!firstProjectId)
         firstProjectId = projects[0]?.id ?? "";
-    // Default to InnovaProSDK (INN-001) and Hoang Van Nhat Anh for demo tasks
+    // Default to InnovaProSDK (INN-001) for demo tasks — spread across 8 members (one per team)
     const inn001Project = projects.find((p) => p.projectCode === "INN-001");
     const demoProjectId = inn001Project?.id ?? firstProjectId;
-    const hoangVanNhatAnh = members.find((m) => m.fullName === "Hoàng Văn Nhật Anh") ?? members[0];
-    if (hoangVanNhatAnh) {
+    const demoAssignees = [
+        members.find((m) => m.fullName === "Hoàng Văn Nhật Anh"),
+        members.find((m) => m.fullName === "Lê Quang Duy"),
+        members.find((m) => m.fullName === "Lê Nguyễn Thục Nhi"),
+        members.find((m) => m.fullName === "Lê Văn Thiện"),
+        members.find((m) => m.fullName === "Lương Nguyễn Bảo Châu"),
+        members.find((m) => m.fullName === "Nguyễn Thanh Huy"),
+        members.find((m) => m.fullName === "Lê Bá Kha"),
+        members.find((m) => m.fullName === "Phan Văn Nguyên"),
+    ].filter(Boolean);
+    if (demoAssignees.length > 0) {
         const seededTaskCodes = new Set(tasks.map((t) => t.taskCode));
-        DEMO_TASKS.forEach((demo) => {
+        DEMO_TASKS.forEach((demo, index) => {
             if (!seededTaskCodes.has(demo.taskCode) && demoProjectId) {
-                tasks.push({
-                    id: createId("t"),
-                    taskCode: demo.taskCode,
-                    title: demo.title,
+                const assignee = demoAssignees[index % demoAssignees.length];
+                if (assignee) {
+                    tasks.push({
+                        id: createId("t"),
+                        taskCode: demo.taskCode,
+                        title: demo.title,
+                        projectId: demoProjectId,
+                        assigneeMemberId: assignee.id,
+                        dueDate: demo.dueDate,
+                        status: demo.status,
+                        priority: demo.priority,
+                        completedAt: demo.completedAt,
+                        plannedStartDate: demo.plannedStartDate,
+                    });
+                }
+            }
+        });
+        // Seed demo project member assignments for all demo assignees
+        demoAssignees.forEach((assignee) => {
+            if (!assignee)
+                return;
+            const existingPM = projectMembers.some((pm) => pm.projectId === demoProjectId && pm.memberId === assignee.id);
+            if (!existingPM && demoProjectId) {
+                projectMembers.push({
+                    id: createId("pm"),
                     projectId: demoProjectId,
-                    assigneeMemberId: hoangVanNhatAnh.id,
-                    dueDate: demo.dueDate,
-                    status: demo.status,
-                    priority: demo.priority,
-                    completedAt: demo.completedAt,
+                    memberId: assignee.id,
+                    assignmentRole: "contributor",
+                    allocationPercent: 100,
+                    assignedAt: nowIso(),
                 });
             }
         });
-        // Seed demo project member assignment
-        const existingPM = projectMembers.some((pm) => pm.projectId === demoProjectId && pm.memberId === hoangVanNhatAnh.id);
-        if (!existingPM && demoProjectId) {
-            projectMembers.push({
-                id: createId("pm"),
-                projectId: demoProjectId,
-                memberId: hoangVanNhatAnh.id,
-                assignmentRole: "owner",
-                allocationPercent: 100,
-                assignedAt: nowIso(),
-            });
-        }
     }
     projectsSeeded = true;
 }
@@ -213,8 +282,9 @@ function sanitizeMetadata(raw) {
 function nowIso() {
     return new Date().toISOString();
 }
+let _idCounter = 0;
 function createId(prefix) {
-    return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    return `${prefix}-${Date.now()}-${_idCounter++}`;
 }
 export function addAuditLog(entry) {
     const item = {
