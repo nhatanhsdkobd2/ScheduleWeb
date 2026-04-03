@@ -157,6 +157,7 @@ Duoi day la ke hoach trien khai chi tiet dua tren PRD. Moi muc co checklist [ ] 
 - [x] **BUG-FIX B-39**: Distribute 8 demo tasks across 8 different members (one per team): Hoàng Văn Nhật Anh, Lê Quang Duy, Lê Nguyễn Thục Nhi, Lê Văn Thiện, Lương Nguyễn Bảo Châu, Nguyễn Thanh Huy, Lê Bá Kha, Phan Văn Nguyên. Also seed project_members for all 8 assignees.
 - [x] **BUG-FIX B-40**: Task Description column text truncated — add `style={{ whiteSpace: "normal", wordBreak: "break-word" }}` to TableCell in data-table.tsx so text wraps fully.
 - [x] **BUG-FIX B-41**: React duplicate key error — `createId()` uses `Date.now() + Math.random()` which can collide on fast HMR/restart. Fix: add module-level `let _idCounter = 0;` and use `${prefix}-${Date.now()}-${_idCounter++}` to guarantee uniqueness.
+- [x] **FEATURE F-01**: Tasks tab Export CSV — Thêm Button "Export CSV" bên cạnh "Add task" (tab Tasks). Export dựa trên `taskTableRows` (đã filter). Các cột: Project Name, Task Description, Assigned To, Start Day, Days, Complete, Priority, Progress. UTF-8 with BOM, escape dấu phẩy/double-quote trong CSV. Function `exportTasksToCSV(rows)` sử dụng Blob + URL.createObjectURL + programmatic click.
 - [ ] Xoa cot Assignment khoi Project List table.
 - [ ] Them chuc nang Create project (modal/form) trong Project List.
 - [ ] Them chuc nang Delete project (soft delete) trong Project List.

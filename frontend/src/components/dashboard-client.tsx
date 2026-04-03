@@ -68,6 +68,56 @@ function formatDate(dateStr: string): string {
   return `${m}-${day}-${y}`;
 }
 
+/** Escape a CSV field: wrap in quotes if it contains comma/quote/newline, and double any embedded quotes */
+function escapeCsvField(value: string): string {
+  if (/[,"\n]/.test(value)) {
+    return `"${value.replace(/"/g, '""')}"`;
+  }
+  return value;
+}
+
+/** Export an array of TaskTableRow to a UTF-8-with-BOM CSV file */
+function exportTasksToCSV(rows: TaskTableRow[]): void {
+  const headers = [
+    "Project Name",
+    "Task Description",
+    "Assigned To",
+    "Start Day",
+    "Days",
+    "Complete",
+    "Priority",
+    "Progress",
+  ];
+  const csvLines: string[] = [
+    headers.map(escapeCsvField).join(","),
+    ...rows.map((row) =>
+      [
+        row.projectName,
+        row.title,
+        row.assigneeName,
+        row.startDate || "",
+        String(row.days),
+        row.completeDate || "",
+        row.priority,
+        `${row.progress}%`,
+      ]
+        .map(escapeCsvField)
+        .join(","),
+    ),
+  ];
+  const bom = "\uFEFF"; // UTF-8 BOM so Excel opens Vietnamese characters correctly
+  const csvContent = bom + csvLines.join("\r\n");
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `tasks-export-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
 /** Enriched row type for the task table */
 interface TaskTableRow {
   id: string;
@@ -906,8 +956,16 @@ export default function DashboardClient() {
               <>
                 <Stack direction="row" justifyContent="space-between" alignItems="center">
                   <Typography variant="h5">Tasks</Typography>
-                  <Button
-                    variant="contained"
+                  <Stack direction="row" spacing={1}>
+                    <Button
+                      variant="outlined"
+                      onClick={() => exportTasksToCSV(taskTableRows)}
+                      disabled={taskTableRows.length === 0}
+                    >
+                      Export CSV
+                    </Button>
+                    <Button
+                      variant="contained"
                     disabled={!canMutate}
                     onClick={() => {
                       setEditTask(null);
@@ -926,6 +984,7 @@ export default function DashboardClient() {
                   >
                     Add task
                   </Button>
+                  </Stack>
                 </Stack>
                 <DataTable columns={taskColumns} data={taskTableRows} />
                 {taskTableRows.length === 0 ? <Alert severity="info">Khong co task phu hop voi filter hien tai.</Alert> : null}
