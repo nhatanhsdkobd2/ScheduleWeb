@@ -41,6 +41,8 @@ export interface Task {
   assigneeMemberId: string;
   dueDate: string;
   completedAt?: string;
+  plannedStartDate?: string;
+  progress?: number;
   status: TaskStatus;
   priority: Priority;
   deletedAt?: string;

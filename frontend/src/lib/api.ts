@@ -114,7 +114,7 @@ export async function getMembers(): Promise<Member[]> {
   return requestJson<Member[]>(`${API_BASE}/members`);
 }
 
-export async function createMember(payload: Omit<Member, "id">): Promise<Member> {
+export async function createMember(payload: Omit<Member, "id" | "memberCode">): Promise<Member> {
   return requestJson<Member>(`${API_BASE}/members`, {
     method: "POST",
     headers: roleHeaders(),
@@ -146,7 +146,7 @@ export async function getProjectMembers(projectId: string): Promise<ProjectMembe
 }
 
 export async function createProject(
-  payload: Omit<Project, "id">,
+  payload: Omit<Project, "id" | "projectCode">,
 ): Promise<Project> {
   return requestJson<Project>(`${API_BASE}/projects`, {
     method: "POST",
@@ -188,7 +188,7 @@ export async function removeProjectMember(projectId: string, memberId: string): 
   });
 }
 
-export async function createTask(payload: Omit<Task, "id" | "status">): Promise<Task> {
+export async function createTask(payload: Omit<Task, "id" | "status" | "taskCode">): Promise<Task> {
   return requestJson<Task>(`${API_BASE}/tasks`, {
     method: "POST",
     headers: roleHeaders(),

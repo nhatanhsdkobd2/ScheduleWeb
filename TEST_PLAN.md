@@ -1,6 +1,6 @@
 # TEST PLAN - ScheduleWeb
 
-Last updated: 2026-03-31
+Last updated: 2026-04-02
 
 Test policy:
 - [x] Khong them tinh nang moi trong phase test nay.
@@ -9,14 +9,14 @@ Test policy:
 
 ## 1) Build and Type Safety
 
-- [x] TC-BUILD-001 Frontend lint (`frontend: npm run lint`)  
-  - Result: `PASS (2026-03-31)` - no lint errors, 1 non-blocking React Compiler warning with TanStack Table
-- [x] TC-BUILD-002 Frontend production build (`frontend: npm run build`)  
-  - Result: `PASS (2026-03-31)` - Next.js build + TypeScript completed
-- [x] TC-BUILD-003 Backend typecheck (`backend: npm run typecheck`)  
-  - Result: `PASS (2026-03-31)` - no TS type errors
-- [x] TC-BUILD-004 Backend build (`backend: npm run build`)  
-  - Result: `PASS (2026-03-31)` - build completed
+- [x] TC-BUILD-001 Frontend lint (`frontend: npm run lint`)
+  - Result: `PASS (2026-04-02)` - no lint errors, 1 non-blocking React Compiler warning with TanStack Table (pre-existing, unrelated)
+- [x] TC-BUILD-002 Frontend production build (`frontend: npm run build`)
+  - Result: `PASS (2026-04-02)` - Next.js build + TypeScript completed
+- [x] TC-BUILD-003 Backend typecheck (`backend: npm run typecheck`)
+  - Result: `PASS (2026-04-02)` - no TS type errors
+- [x] TC-BUILD-004 Backend build (`backend: npm run build`)
+  - Result: `PASS (2026-04-02)` - build completed
 
 ## 2) Backend Unit/Service Logic
 
@@ -89,9 +89,9 @@ Test policy:
 - [x] TC-CHART-002 Delay trend chart rendering  
   - Scope: line chart renders period and values  
   - Result: `PENDING`
-- [x] TC-CHART-003 Status distribution chart rendering  
-  - Scope: bar chart renders per status counts  
-  - Result: `PENDING`
+- [x] TC-CHART-003 Status distribution chart rendering
+  - Scope: bar chart renders per status counts
+  - Result: `N/A (2026-04-02)` - Status distribution chart and Status filter removed from dashboard per user request. Feature tracked in IMPLEMENTATION_PLAN §6.3.
 - [x] TC-CHART-004 Performance score chart rendering  
   - Scope: score bars visible with member labels  
   - Result: `PENDING`
@@ -125,15 +125,15 @@ Test policy:
 
 ## 7) Performance Benchmarks
 
-- [x] TC-PERF-001 Tasks endpoint p95 latency  
-  - Scope: benchmark script output `PERF_TASKS_P95_MS`  
-  - Result: `PASS (2026-03-31)` - `PERF_TASKS_P95_MS=6.05`
-- [x] TC-PERF-002 Dashboard endpoint p95 latency  
-  - Scope: benchmark script output `PERF_DASHBOARD_P95_MS`  
-  - Result: `PASS (2026-03-31)` - `PERF_DASHBOARD_P95_MS=1.40`
-- [x] TC-PERF-003 Export execution benchmark  
-  - Scope: benchmark script output `PERF_EXPORT_MS`  
-  - Result: `PASS (2026-03-31)` - `PERF_EXPORT_MS=49.80`
+- [x] TC-PERF-001 Tasks endpoint p95 latency
+  - Scope: benchmark script output `PERF_TASKS_P95_MS`
+  - Result: `PASS (2026-04-02)` - `PERF_TASKS_P95_MS=3.35` (improved from 6.05)
+- [x] TC-PERF-002 Dashboard endpoint p95 latency
+  - Scope: benchmark script output `PERF_DASHBOARD_P95_MS`
+  - Result: `PASS (2026-04-02)` - `PERF_DASHBOARD_P95_MS=1.26` (improved from 1.40)
+- [x] TC-PERF-003 Export execution benchmark
+  - Scope: benchmark script output `PERF_EXPORT_MS`
+  - Result: `PASS (2026-04-02)` - `PERF_EXPORT_MS=18.57` (improved from 49.80)
 
 ## 8) CI Pipeline Validation
 
@@ -146,7 +146,21 @@ Test policy:
 
 ## 9) Execution Log
 
-- [x] Cycle 1: Run compiler/builder and automated tests  
+- [x] Cycle 1: Run compiler/builder and automated tests
   - Result: `PASS (2026-03-31)` - all scripts executed
-- [x] Cycle 2: Auto-fix errors (if any), rerun  
+- [x] Cycle 2: Auto-fix errors (if any), rerun
   - Result: `PASS (2026-03-31)` - filter desync hotfix applied and full compiler/test suite rerun PASS
+- [x] Cycle 3: Remove Status column/filter/chart (2026-04-02)
+  - Result: `PASS (2026-04-02)` - removed Status column from task table, Status filter dropdown, Task Status Distribution chart, and Completion vs Overdue chart from dashboard. Backend data.ts openTasks logic updated to use `!completedAt`. All tests PASS. Perf improved: P95 tasks 3.35ms (was 6.05), dashboard 1.26ms (was 1.40), export 18.57ms (was 49.80).
+- [x] Cycle 4: Remove Status column from Member & Project table (2026-04-02)
+  - Result: `PASS (2026-04-02)` - removed Status column from Member table and Project table UI. Removed Status TextField from Add/Edit Project dialog. Data model/backend unchanged. All tests PASS. Perf: P95 tasks 2.51ms, dashboard 1.23ms, export 17.81ms.
+- [x] Cycle 5: Auto-generate task code server-side (2026-04-02)
+  - Result: `PASS (2026-04-02)` - removed taskCode from Create Task form, validation schema, and frontend state. Backend auto-generates `TSK-NNN` on POST /tasks (max current + 1). Backend tests PASS. Perf: P95 tasks 2.30ms, dashboard 1.43ms, export 21.94ms.
+- [x] Cycle 6: Start Day column — rename + inline editable (2026-04-02)
+  - Result: `PASS (2026-04-02)` - renamed "Start" -> "Start Day", made inline editable with date picker. Backend `plannedStartDate` added to Task model, schemas, and seed data. Default value on new task = today. All tests PASS. Perf: P95 tasks 4.37ms, dashboard 3.28ms, export 41.48ms.
+- [x] Cycle 7: Fix Start Day default = today, no empty placeholder (2026-04-02)
+  - Result: `PASS (2026-04-02)` - changed column fallback from `""` to `new Date().toISOString().slice(0, 10)` so empty `plannedStartDate` shows today instead of "mm/dd/yyyy". All tests PASS. Perf: P95 tasks 4.78ms, dashboard 2.97ms, export 42.16ms.
+- [x] Cycle 8: Remove Project + Due from/to filters from Members tab (2026-04-02)
+  - Result: `PASS (2026-04-02)` - tab Member now only shows Search, Team, Member filters. Dashboard and Tasks tabs keep full filters unchanged. All tests PASS. Perf: P95 tasks 5.62ms, dashboard 5.12ms, export 41.23ms.
+- [x] Cycle 9: Fix Project dropdown not working — extract ProjectSelect component (2026-04-02)
+  - Result: `PASS (2026-04-02)` - created `components/project-select.tsx` using MUI `Select` + `ListSubheader` (avoids ESLint JSX parser bug with `.flat()` in children). Project filter now shows grouped categories and is fully interactive. All tests PASS. Perf: P95 tasks 2.00ms, dashboard 1.57ms, export 20.40ms.

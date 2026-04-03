@@ -142,6 +142,9 @@ Duoi day la ke hoach trien khai chi tiet dua tren PRD. Moi muc co checklist [ ] 
 - [x] Soft delete + confirm dialog.
 - [x] Search/filter/sort.
 - [x] Role-based action rendering.
+- [x] Xoa filter Project, Due from, Due to khoi tab Member (chi giu Search + Team + Member).
+- [x] Xoa cot Code (memberCode) khoi Member table — chi con Name + Email + Team + Role + Actions.
+- [x] Member create: auto-generate memberCode server-side (format `MEM-NNN`), bo khoi form nguoi dung nhap.
 
 ### 6.2 Project module
 - [x] Project List page.
@@ -161,7 +164,9 @@ Duoi day la ke hoach trien khai chi tiet dua tren PRD. Moi muc co checklist [ ] 
 - [ ] Fix bug: Category hien thi rong sau khi tao project moi — category phai luon co gia tri khi tao/sua.
 - [ ] Fix bug: API client throw "Expecting value: line 1 column 1" khi backend chua chay — parse JSON robust, hien thi error message thay vi crash.
 - [ ] Fix bug: MUI Select hien thi rong khi category la undefined/empty sau khi mo dialog edit hoac submit — them fallback vao list options.
-- [ ] Xoa cot Category khoi Project table (chi hien thi: Code, Name, Status, Actions).
+- [x] Xoa cot Category khoi Project table (chi hien thi: Code, Name, Status, Actions).
+- [x] Xoa cot Code (projectCode) khoi Project table — chi con Name + Actions.
+- [x] Project create: auto-generate projectCode server-side (format `PROJ-NNN`), bo khoi form nguoi dung nhap.
 
 ### 6.3 Task module
 - [x] Task List/Board page.
@@ -173,7 +178,14 @@ Duoi day la ke hoach trien khai chi tiet dua tren PRD. Moi muc co checklist [ ] 
 - [x] Thiet ke lai Task table voi inline editing: Project Name, Task Description, Assigned to, Start, Days, Complete, Priority — edit truc tiep ngay tren hang. Bo cot Project Type, Notes, Status.
 - [x] Fix bug: Filter "all" (default) khong tra ve task nao — query phai truyen undefined khi filter = "all".
 - [x] Default project = InnovaProSDK, default assignee = Hoang Van Nhat Anh cho task demo (seed) va task moi.
-- [ ] Remove Status column khoi task table, filter bar, chart status distribution, va cac cho khac.
+- [x] Fix Project dropdown filter khong hoat dong: thay `TextField select` bang `Select` component (voi `ListSubheader` cho categories) de ho tro grouped options trong menu.
+- [x] Start Day column: doi ten tu "Start" -> "Start Day", cho phep inline edit, gia tri mac dinh = ngay hien tai (khong de trong). Khi plannedStartDate undefined, hien thi ngay hom nay thay vi placeholder.
+- [x] Xoa cot History, them cot Progress % voi LinearProgress: nguoi dung nhap so 1-100, thanh xanh the hien %, tu dong done khi = 100, overdue khi chua 100% va due_date da qua.
+- [x] Task Description column: su dung flexGrow de lay het khoang trong con lai, text hien thi day du khong bi cat.
+- [x] Progress column: hien thi Typography so % ro rang (vd: "80%"), Tooltip chi ro trang thai ("On track" / "Overdue X days" / "Done"), input nho de nguoi dung nhap so.
+- [x] Remove Status column khoi task table, filter bar, chart status distribution, va cac cho khac.
+- [x] Auto-generate task code server-side (format `TSK-NNN`, max current + 1), bo khoi form tao task va schema validation.
+- [x] Remove Status column khoi Project table va Member table (chi giu lai trong data model/backend logic, khong hien thi tren UI).
 
 ### 6.4 Scheduler module
 - [x] Integrate FullCalendar React.

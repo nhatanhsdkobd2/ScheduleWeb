@@ -123,7 +123,6 @@ app.get("/health", (_req, res) => {
 });
 
 const memberCreateSchema = z.object({
-  memberCode: z.string().min(3),
   fullName: z.string().min(2),
   email: z.string().email(),
   role: z.enum(["admin", "pm", "lead", "member"]),
@@ -135,12 +134,16 @@ app.post("/members", requireRoles(["admin", "pm", "lead"]), (req, res) => {
   const parsed = memberCreateSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-  const duplicated = getMembersWithSeed().some(
-    (member) => member.email === parsed.data.email || member.memberCode === parsed.data.memberCode,
-  );
-  if (duplicated) return res.status(409).json({ error: "Duplicate member_code or email" });
+  const duplicated = getMembersWithSeed().some((member) => member.email === parsed.data.email);
+  if (duplicated) return res.status(409).json({ error: "Duplicate email" });
 
-  const member = createMember(parsed.data);
+  // Auto-generate memberCode: MEM-NNN (max current + 1)
+  const allCodes = getMembersWithSeed().map((m) => m.memberCode).filter((c) => c.startsWith("MEM-"));
+  const nums = allCodes.map((c) => parseInt(c.replace("MEM-", ""), 10)).filter((n) => !isNaN(n));
+  const maxNum = nums.length > 0 ? Math.max(...nums) : 0;
+  const newCode = `MEM-${String(maxNum + 1).padStart(3, "0")}`;
+
+  const member = createMember({ ...parsed.data, memberCode: newCode });
   return res.status(201).json(member);
 });
 
@@ -168,7 +171,6 @@ app.delete("/members/:id", requireRoles(["admin", "pm", "lead"]), (req, res) => 
 });
 
 const projectCreateSchema = z.object({
-  projectCode: z.string().min(3),
   name: z.string().min(2),
   ownerMemberId: z.string().optional(),
   status: z.enum(["planning", "active", "on_hold", "completed", "canceled"]).default("active"),
@@ -180,9 +182,12 @@ app.post("/projects", requireRoles(["admin", "pm", "lead"]), (req, res) => {
   if (parsed.data.ownerMemberId && !findMemberById(parsed.data.ownerMemberId)) {
     return res.status(400).json({ error: "ownerMemberId invalid" });
   }
-  const duplicated = getProjectsWithSeed().some((project) => project.projectCode === parsed.data.projectCode);
-  if (duplicated) return res.status(409).json({ error: "Duplicate projectCode" });
-  const project = createProject(parsed.data);
+  // Auto-generate projectCode: PROJ-NNN (max current + 1)
+  const allCodes = getProjectsWithSeed().map((p) => p.projectCode).filter((c) => c.startsWith("PROJ-"));
+  const nums = allCodes.map((c) => parseInt(c.replace("PROJ-", ""), 10)).filter((n) => !isNaN(n));
+  const maxNum = nums.length > 0 ? Math.max(...nums) : 0;
+  const newCode = `PROJ-${String(maxNum + 1).padStart(3, "0")}`;
+  const project = createProject({ ...parsed.data, projectCode: newCode });
   return res.status(201).json(project);
 });
 
@@ -251,12 +256,12 @@ app.delete("/projects/:id/members/:memberId", requireRoles(["admin", "pm", "lead
 });
 
 const taskCreateSchema = z.object({
-  taskCode: z.string().min(3),
   title: z.string().min(3),
   projectId: z.string(),
   assigneeMemberId: z.string(),
   dueDate: z.string(),
   priority: z.enum(["low", "medium", "high", "critical"]),
+  plannedStartDate: z.string().optional(),
 });
 
 app.post("/tasks", requireRoles(["admin", "pm", "lead"]), (req, res) => {
@@ -267,7 +272,18 @@ app.post("/tasks", requireRoles(["admin", "pm", "lead"]), (req, res) => {
   if (new Date(parsed.data.dueDate).getTime() < Date.now() - 3650 * 24 * 60 * 60 * 1000) {
     return res.status(400).json({ error: "dueDate invalid" });
   }
-  const task = createTask(parsed.data);
+  // Auto-generate task code: find max TSK-NNN and increment
+  const existingCodes = tasks.map((t) => t.taskCode);
+  let nextNum = 1;
+  for (const code of existingCodes) {
+    const match = /^TSK-(\d+)$/.exec(code);
+    if (match) {
+      const num = Number.parseInt(match[1] ?? "0", 10);
+      if (num >= nextNum) nextNum = num + 1;
+    }
+  }
+  const taskCode = `TSK-${String(nextNum).padStart(3, "0")}`;
+  const task = createTask({ taskCode, ...parsed.data });
   return res.status(201).json(task);
 });
 
@@ -295,6 +311,8 @@ const taskPatchSchema = z
     title: z.string().min(3).optional(),
     assigneeMemberId: z.string().optional(),
     dueDate: z.string().optional(),
+    plannedStartDate: z.string().optional(),
+    progress: z.number().int().min(0).max(100).optional(),
     status: z.enum(["todo", "in_progress", "blocked", "done", "canceled"]).optional(),
     priority: z.enum(["low", "medium", "high", "critical"]).optional(),
     completedAt: z.string().optional(),
@@ -314,7 +332,22 @@ app.patch("/tasks/:id", requireRoles(["admin", "pm", "lead"]), (req, res) => {
   if (parsed.data.dueDate && new Date(parsed.data.dueDate).toString() === "Invalid Date") {
     return res.status(400).json({ error: "dueDate invalid" });
   }
-  const updated = updateTask(taskId, parsed.data);
+
+  // Progress logic: when progress reaches 100, mark as done
+  const incoming = parsed.data;
+  const patchData: Record<string, unknown> = { ...incoming };
+  if (incoming.progress !== undefined) {
+    if (incoming.progress === 100) {
+      patchData.completedAt = new Date().toISOString().slice(0, 10);
+      patchData.status = "done";
+    } else if (current.status === "done" || current.completedAt) {
+      // Progress dropped below 100 — revert to in_progress
+      patchData.completedAt = undefined;
+      patchData.status = "in_progress";
+    }
+  }
+
+  const updated = updateTask(taskId, patchData);
   return res.json(updated);
 });
 

@@ -107,16 +107,16 @@ const DEFAULT_PROJECTS: Omit<Project, "id">[] = [
 ];
 
 // ── Demo tasks (seeded after members + projects) ────────────────────────────
-interface DemoTask { taskCode: string; title: string; dueDate: string; status: Task["status"]; priority: Task["priority"]; completedAt?: string; }
+interface DemoTask { taskCode: string; title: string; dueDate: string; status: Task["status"]; priority: Task["priority"]; completedAt?: string; plannedStartDate?: string; }
 const DEMO_TASKS: DemoTask[] = [
-  { taskCode: "TSK-001", title: "Kickoff meeting & team alignment", dueDate: "2026-04-07", status: "done", priority: "high", completedAt: "2026-04-06" },
-  { taskCode: "TSK-002", title: "Initial architecture design", dueDate: "2026-04-15", status: "in_progress", priority: "high" },
-  { taskCode: "TSK-003", title: "Backend API scaffolding", dueDate: "2026-04-20", status: "todo", priority: "medium" },
-  { taskCode: "TSK-004", title: "Frontend dashboard setup", dueDate: "2026-04-25", status: "todo", priority: "medium" },
-  { taskCode: "TSK-005", title: "Database schema design", dueDate: "2026-04-12", status: "done", priority: "critical", completedAt: "2026-04-11" },
-  { taskCode: "TSK-006", title: "CI/CD pipeline configuration", dueDate: "2026-04-30", status: "blocked", priority: "medium" },
-  { taskCode: "TSK-007", title: "Performance benchmark baseline", dueDate: "2026-05-05", status: "todo", priority: "low" },
-  { taskCode: "TSK-008", title: "UAT preparation & documentation", dueDate: "2026-05-10", status: "todo", priority: "medium" },
+  { taskCode: "TSK-001", title: "Kickoff meeting & team alignment", dueDate: "2026-04-07", status: "done", priority: "high", completedAt: "2026-04-06", plannedStartDate: "2026-04-06" },
+  { taskCode: "TSK-002", title: "Initial architecture design", dueDate: "2026-04-15", status: "in_progress", priority: "high", plannedStartDate: "2026-04-08" },
+  { taskCode: "TSK-003", title: "Backend API scaffolding", dueDate: "2026-04-20", status: "todo", priority: "medium", plannedStartDate: "2026-04-13" },
+  { taskCode: "TSK-004", title: "Frontend dashboard setup", dueDate: "2026-04-25", status: "todo", priority: "medium", plannedStartDate: "2026-04-18" },
+  { taskCode: "TSK-005", title: "Database schema design", dueDate: "2026-04-12", status: "done", priority: "critical", completedAt: "2026-04-11", plannedStartDate: "2026-04-11" },
+  { taskCode: "TSK-006", title: "CI/CD pipeline configuration", dueDate: "2026-04-30", status: "blocked", priority: "medium", plannedStartDate: "2026-04-23" },
+  { taskCode: "TSK-007", title: "Performance benchmark baseline", dueDate: "2026-05-05", status: "todo", priority: "low", plannedStartDate: "2026-04-28" },
+  { taskCode: "TSK-008", title: "UAT preparation & documentation", dueDate: "2026-05-10", status: "todo", priority: "medium", plannedStartDate: "2026-05-03" },
 ];
 
 // ── Auto-seed: run once per server lifecycle ───────────────────────────────
@@ -452,7 +452,7 @@ export function getDashboardSummary(): DashboardSummary {
   const now = new Date();
   const activeMembers = getMembersWithSeed();
   const activeProjects = getProjectsWithSeed();
-  const openTasks = tasks.filter((task) => !task.deletedAt && task.status !== "done" && task.status !== "canceled");
+  const openTasks = tasks.filter((task) => !task.deletedAt && !task.completedAt);
   const overdueTasks = openTasks.filter((task) => new Date(task.dueDate) < now).length;
   return {
     activeMembers: activeMembers.filter((member) => member.status === "active").length,

@@ -136,16 +136,18 @@ Nguon:
 ## 5) Functional Requirements
 
 ## FR-1 Member Management
-- Tao member voi thong tin co ban: code, full name, email, role, team, status.
+- Tao member voi thong tin co ban: full name, email, role, team, status. Member Code tu dong tao server-side (format `MEM-NNN`), nguoi dung khong can nhap.
 - Chinh sua member profile.
 - Soft delete member (khong xoa cung de giu lich su).
 - Search/filter theo ten, role, team, status.
+- Filter o tab Member chi gom Search, Team, Member — khong co Project, Due from, Due to.
 - Xem lich su assignment cua member.
 
 Acceptance:
 - CRUD thanh cong voi validation.
-- Khong cho duplicate email/member_code.
+- Khong cho duplicate email.
 - Soft-deleted member khong hien o danh sach active.
+- Member table hien thi: Name, Email, Team, Role, Actions (khong co cot Code, khong co Member Code).
 
 ## FR-2 Project Management (co ban)
 - Tao/sua project.
@@ -154,11 +156,11 @@ Acceptance:
 - Gan member vao project (many-to-many).
 - **Xoa project** (soft delete).
 - **Sua project** — chinh sua cac truong: name, description, status.
-- **Tao project moi** voi cac truong: name, project_code, description, status.
+- **Tao project moi** voi cac truong: name, description, status. Project Code tu dong tao server-side (format `PROJ-NNN`), nguoi dung khong can nhap.
 
 Acceptance:
 - Member assignment co hieu luc theo khoang thoi gian.
-- Project table hien thi: Code, Name, Status, Actions (khong co cot Assignment, khong co cot Category, khong co cot Owner).
+- Project table hien thi: Name, Actions (khong co cot Code, khong co cot Status, khong co cot Assignment, khong co cot Category, khong co cot Owner, khong co Project Code).
 - Actions gom: Edit (mo dialog sua) va Delete (soft delete).
 - **Bug fix**: Delete project khong hoat dong — mutation error khong duoc hien thi cho user. Can add error feedback khi delete that bai.
 - **Filter khu vuc Project**: Khong co filter nao o tab Project — chi hien thi danh sach project day du.
@@ -168,11 +170,13 @@ Acceptance:
 - Gan task vao project va assignee.
 - Hien thi task tren calendar/scheduler theo week/month.
 - Canh bao task sap tre/da tre.
-- **Inline editing**: cac cot trong task table co the edit truc tiep ngay tren hang: Project Name, Task Description, Assigned to, Start, Days, Complete, Priority (khong co Status).
+- **Inline editing**: cac cot trong task table co the edit truc tiep ngay tren hang: Project Name, Task Description, Assigned to, Start Day, Days, Complete, Priority, Progress (khong co Status).
+- **Start Day default**: Gia tri mac dinh luon la ngay hien tai (khong de trong), co the chinh sua tay truc tiep tren cot.
 
 Acceptance:
-- Task table hien thi cac cot: Project Name, Task Description, Assigned to, Start, Days, Complete, Priority (khong co Status, khong co Project Type, khong co Notes).
-- Cot Task Description hien thi day du text, khong bi cat ngan boi do dai cot.
+- Task table hien thi cac cot: Project Name, Task Description, Assigned to, Start Day, Days, Complete, Priority, Progress (khong co Status, khong co Project Type, khong co Notes, khong co Task Code, khong co History).
+- **Progress % column**: Cot moi thay the cot History. Nguoi dung nhap so tu 1 den 100. Thanh LinearProgress (nen trang, duoi xanh) hien thi % tuong ung. Khi nhap 100 -> task tu dong danh dau done. Overdue: neu chua dat 100% va due_date da qua. Hien thi ro rang so % bang Typography (khong chi la input nho), co tooltip chi ro trang thai.
+- **Task Description hien thi day du**: Cot Task Description su dung flex-grow de lay het khoang trong con lai cua hang, text hien thi day du khong bi cat boi do dai cot.
 - Cac cot co the edit truc tiep ngay tren hang (inline edit, khong can mo dialog Edit).
 - Inline edit thay doi gia tri -> goi mutation API cap nhat ngay lap tuc.
 - moi task bat buoc thuoc 1 project.
@@ -436,6 +440,7 @@ Khi khoi tao he thong lan dau, 26 members sau se duoc tao san trong bang `member
 - description (text)
 - priority (enum: low/medium/high/critical)
 - status (enum: todo/in_progress/blocked/done/canceled)
+- progress (int, 0-100, nullable) — phan tram hoan thanh, mac dinh null
 - planned_start_date (date)
 - due_date (date, not null)
 - completed_at (timestamp, nullable)
@@ -448,7 +453,7 @@ Khi khoi tao he thong lan dau, 26 members sau se duoc tao san trong bang `member
 ### Filter Consistency Rules (Hotfix)
 - Dashboard filters phai dung cung mot state nguon (single source of truth) cho KPI, chart va table.
 - Khi doi filter `member`, ket qua member/task/chart/KPI phai cap nhat ngay trong cung luong tuong tac.
-- Query filter `project/member/status/date/search` phai ket hop theo AND (khong ghi de nhau).
+- Query filter `project/member/date/search` phai ket hop theo AND (khong ghi de nhau).
 - UI khong duoc giu stale results sau mutate; bat buoc invalidate query cache dung key.
 - Neu ket qua filter rong thi hien empty-state thay vi hien data cu.
 
