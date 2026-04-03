@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { AppRouterCacheProvider } from "@mui/material-nextjs/v13-appRouter";
 import Providers from "@/components/providers";
 import AppThemeProvider from "@/components/app-theme-provider";
 import "./globals.css";
@@ -30,9 +31,11 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <AppThemeProvider>
-          <Providers>{children}</Providers>
-        </AppThemeProvider>
+        <AppRouterCacheProvider>
+          <AppThemeProvider>
+            <Providers>{children}</Providers>
+          </AppThemeProvider>
+        </AppRouterCacheProvider>
       </body>
     </html>
   );

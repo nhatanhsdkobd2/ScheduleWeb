@@ -872,10 +872,10 @@ export default function DashboardClient() {
                 Performance Score by Member
               </Typography>
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={performanceChartData}>
+                <BarChart layout="vertical" data={performanceChartData} margin={{ top: 5, right: 20, left: 100, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
+                  <XAxis type="number" />
+                  <YAxis type="category" dataKey="name" width={95} tick={{ fontSize: 11 }} />
                   <Tooltip />
                   <Bar dataKey="score" fill="#22c55e" />
                 </BarChart>
@@ -888,10 +888,10 @@ export default function DashboardClient() {
                 Workload by Member
               </Typography>
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={workloadByMember}>
+                <BarChart layout="vertical" data={workloadByMember} margin={{ top: 5, right: 20, left: 100, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
+                  <XAxis type="number" />
+                  <YAxis type="category" dataKey="name" width={95} tick={{ fontSize: 11 }} />
                   <Tooltip />
                   <Bar dataKey="tasks" fill="#f59e0b" />
                 </BarChart>
