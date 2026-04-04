@@ -44,12 +44,16 @@ const idempotencyCache = new Map<string, { status: "success"; reports: string[];
 
 /**
  * CORS: mặc định cho phép mọi origin (`origin: true` = echo header Origin).
- * Đặt ALLOWED_ORIGIN=https://mot-domain.com để chỉ cho phép một origin.
+ * Đặt ALLOWED_ORIGIN=https://mot-domain.com để chỉ cho phép một origin (không thêm / cuối).
  * ALLOWED_ORIGIN=* giữ hành vi “mọi domain” (giống không set).
  */
-const explicitOrigin = process.env.ALLOWED_ORIGIN?.trim();
-const corsOrigin =
-  explicitOrigin && explicitOrigin !== "*" ? explicitOrigin : true;
+function normalizeOrigin(url: string): string {
+  return url.replace(/\/+$/, "");
+}
+const rawOrigin = process.env.ALLOWED_ORIGIN?.trim();
+const explicitOrigin =
+  rawOrigin && rawOrigin !== "*" ? normalizeOrigin(rawOrigin) : undefined;
+const corsOrigin = explicitOrigin ?? true;
 
 const app = express();
 // Trust proxy so express-rate-limit can read X-Forwarded-For header
@@ -57,12 +61,18 @@ app.set("trust proxy", 1);
 app.use(
   cors({
     origin: corsOrigin,
+    methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS", "HEAD"],
+    allowedHeaders: ["Content-Type", "Authorization", "x-role", "X-Role", "Idempotency-Key"],
+    optionsSuccessStatus: 204,
   }),
 );
 app.use(express.json());
-// Cho phép frontend khác domain đọc response (mặc định Helmet đặt CORP same-origin → trình duyệt báo CORS).
+// API JSON: tắt CSP; tắt COOP/COEP mặc định (dễ gây lỗi “CORS” trên fetch cross-origin); CORP = cross-origin.
 app.use(
   helmet({
+    contentSecurityPolicy: false,
+    crossOriginOpenerPolicy: false,
+    crossOriginEmbedderPolicy: false,
     crossOriginResourcePolicy: { policy: "cross-origin" },
   }),
 );
