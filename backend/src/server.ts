@@ -44,6 +44,8 @@ const idempotencyCache = new Map<string, { status: "success"; reports: string[];
 const allowedOrigin = process.env.ALLOWED_ORIGIN ?? "http://localhost:3000";
 
 const app = express();
+// Trust proxy so express-rate-limit can read X-Forwarded-For header
+app.set("trust proxy", 1);
 app.use(
   cors({
     origin: allowedOrigin,
@@ -530,8 +532,9 @@ app.post("/reports/cleanup", requireRoles(["admin"]), async (req, res) => {
 app.use("/exports", express.static(EXPORT_DIR));
 
 const port = Number(process.env.PORT ?? 4000);
-app.listen(port, () => {
-  console.log(`Backend listening on http://localhost:${port}`);
+const host = process.env.HOST ?? "0.0.0.0";
+app.listen(port, host, () => {
+  console.log(`Backend listening on http://${host}:${port}`);
 });
 
 setInterval(() => {
