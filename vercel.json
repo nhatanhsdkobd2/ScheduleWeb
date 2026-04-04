@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "experimental": {
+    "services": {
+      "frontend": {
+        "entrypoint": "frontend",
+        "routePrefix": "/"
+      }
+    }
+  }
+}
