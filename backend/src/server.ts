@@ -60,7 +60,12 @@ app.use(
   }),
 );
 app.use(express.json());
-app.use(helmet());
+// Cho phép frontend khác domain đọc response (mặc định Helmet đặt CORP same-origin → trình duyệt báo CORS).
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  }),
+);
 app.use(
   rateLimit({
     windowMs: 60 * 1000,
