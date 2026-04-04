@@ -41,14 +41,22 @@ import { generateExcelReport, generatePdfReport } from "./report-generator.js";
 
 const EXPORT_DIR = path.resolve(process.cwd(), "exports");
 const idempotencyCache = new Map<string, { status: "success"; reports: string[]; exportDir: string }>();
-const allowedOrigin = process.env.ALLOWED_ORIGIN ?? "http://localhost:3000";
+
+/**
+ * CORS: mặc định cho phép mọi origin (`origin: true` = echo header Origin).
+ * Đặt ALLOWED_ORIGIN=https://mot-domain.com để chỉ cho phép một origin.
+ * ALLOWED_ORIGIN=* giữ hành vi “mọi domain” (giống không set).
+ */
+const explicitOrigin = process.env.ALLOWED_ORIGIN?.trim();
+const corsOrigin =
+  explicitOrigin && explicitOrigin !== "*" ? explicitOrigin : true;
 
 const app = express();
 // Trust proxy so express-rate-limit can read X-Forwarded-For header
 app.set("trust proxy", 1);
 app.use(
   cors({
-    origin: allowedOrigin,
+    origin: corsOrigin,
   }),
 );
 app.use(express.json());

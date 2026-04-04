@@ -133,3 +133,8 @@ The available values are `Mobile Team`, `OS Team`, `Tester Team`, `Tablet Team`,
 [browser] MUI: You have provided an out-of-range value `Platform` for the select component.
 Consider providing a value that matches one of the available options or ''.
 The available values are `Mobile Team`, `OS Team`, `Tester Team`, `Tablet Team`, `Web Team`, `Passthrough Team`, `Server API Team`.
+ GET / 200 in 50ms (next.js: 13ms, application-code: 37ms)
+✓ Compiled in 57ms
+✓ Compiled in 30ms
+✓ Compiled in 46ms
+✓ Compiled in 59ms

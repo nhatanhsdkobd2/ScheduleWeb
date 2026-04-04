@@ -20,7 +20,9 @@ export interface DashboardPayload {
   performance: PerformanceItem[];
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
+/** Base URL for API (set NEXT_PUBLIC_API_BASE_URL on Vercel; baked in at build time). */
+export const publicApiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
+const API_BASE = publicApiBaseUrl;
 
 export async function getDashboardData(): Promise<DashboardPayload> {
   try {
@@ -83,7 +85,9 @@ async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
   try {
     response = await fetch(url, init);
   } catch {
-    throw new Error(`Khong the ket noi backend tai ${API_BASE}. Vui long dam bao backend dang chay tren cong 4000.`);
+    throw new Error(
+      `Khong the ket noi backend tai ${API_BASE}. Local: chay backend (cong 4000). Production: kiem tra NEXT_PUBLIC_API_BASE_URL tren Vercel va Redeploy; tren Render dat ALLOWED_ORIGIN dung URL trang web.`,
+    );
   }
 
   if (!response.ok) {

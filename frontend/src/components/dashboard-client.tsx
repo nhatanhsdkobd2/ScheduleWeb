@@ -38,6 +38,7 @@ import {
   getMembers,
   getProjects,
   getTasksByFilters,
+  publicApiBaseUrl,
   updateProject,
   updateTask,
   updateMember,
@@ -417,7 +418,11 @@ export default function DashboardClient() {
   if (membersQuery.error || projectsQuery.error || tasksQuery.error) {
     return (
       <Container suppressHydrationWarning sx={{ py: 4 }}>
-        <Typography color="error">Khong the tai du lieu. Hay chay backend tai cong 4000.</Typography>
+        <Typography color="error" component="div" sx={{ whiteSpace: "pre-wrap" }}>
+          {`Khong the tai du lieu. Dang goi API: ${publicApiBaseUrl}
+Neu la localhost: chay backend (cong 4000).
+Neu la production: Vercel can NEXT_PUBLIC_API_BASE_URL = URL Render (vd https://...onrender.com) va Redeploy. Tren Render, ALLOWED_ORIGIN phai dung origin trinh duyet (vd https://ten-app.vercel.app).`}
+        </Typography>
       </Container>
     );
   }
