@@ -5,7 +5,7 @@
 ▲ Next.js 16.2.1 (Turbopack)
 - Local:         http://localhost:3000
 - Network:       http://172.16.49.60:3000
-✓ Ready in 143ms
+✓ Ready in 241ms
 ⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
  We detected multiple lockfiles and selected the directory of /Users/full-stack-sdk01/package-lock.json as the root directory.
  To silence this warning, set `turbopack.root` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
@@ -14,78 +14,122 @@
    * /Users/full-stack-sdk01/Downloads/ScheduleWebNew/frontend/package-lock.json
 
 
- GET / 200 in 2.2s (next.js: 1998ms, application-code: 219ms)
 [browser] The width(-1) and height(-1) of chart should be greater than 0,
        please check the style of container, or the props width(100%) and height(100%),
        or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
-       height and width.
+       height and width. (file:///Users/full-stack-sdk01/Downloads/ScheduleWebNew/frontend/.next/dev/static/chunks/0ahj_next_dist_0rnfv0o._.js:2431:13)
 [browser] The width(-1) and height(-1) of chart should be greater than 0,
        please check the style of container, or the props width(100%) and height(100%),
        or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
-       height and width.
+       height and width. (file:///Users/full-stack-sdk01/Downloads/ScheduleWebNew/frontend/.next/dev/static/chunks/0ahj_next_dist_0rnfv0o._.js:2431:13)
 [browser] The width(-1) and height(-1) of chart should be greater than 0,
        please check the style of container, or the props width(100%) and height(100%),
        or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
-       height and width.
+       height and width. (file:///Users/full-stack-sdk01/Downloads/ScheduleWebNew/frontend/.next/dev/static/chunks/0ahj_next_dist_0rnfv0o._.js:2431:13)
 [browser] The width(-1) and height(-1) of chart should be greater than 0,
        please check the style of container, or the props width(100%) and height(100%),
        or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
-       height and width.
+       height and width. (file:///Users/full-stack-sdk01/Downloads/ScheduleWebNew/frontend/.next/dev/static/chunks/0ahj_next_dist_0rnfv0o._.js:2431:13)
 [browser] The width(-1) and height(-1) of chart should be greater than 0,
        please check the style of container, or the props width(100%) and height(100%),
        or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
-       height and width.
+       height and width. (file:///Users/full-stack-sdk01/Downloads/ScheduleWebNew/frontend/.next/dev/static/chunks/0ahj_next_dist_0rnfv0o._.js:2431:13)
 [browser] The width(-1) and height(-1) of chart should be greater than 0,
        please check the style of container, or the props width(100%) and height(100%),
        or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
-       height and width.
- GET / 200 in 18ms (next.js: 1587µs, application-code: 16ms)
+       height and width. (file:///Users/full-stack-sdk01/Downloads/ScheduleWebNew/frontend/.next/dev/static/chunks/0ahj_next_dist_0rnfv0o._.js:2431:13)
+ GET / 200 in 2.3s (next.js: 2.1s, application-code: 223ms)
+ GET / 200 in 31ms (next.js: 4ms, application-code: 27ms)
+ GET / 200 in 50ms (next.js: 11ms, application-code: 39ms)
 [browser] The width(-1) and height(-1) of chart should be greater than 0,
        please check the style of container, or the props width(100%) and height(100%),
        or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
-       height and width.
+       height and width. (file:///Users/full-stack-sdk01/Downloads/ScheduleWebNew/frontend/.next/dev/static/chunks/0ahj_next_dist_0rnfv0o._.js:2431:13)
 [browser] The width(-1) and height(-1) of chart should be greater than 0,
        please check the style of container, or the props width(100%) and height(100%),
        or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
-       height and width.
+       height and width. (file:///Users/full-stack-sdk01/Downloads/ScheduleWebNew/frontend/.next/dev/static/chunks/0ahj_next_dist_0rnfv0o._.js:2431:13)
 [browser] The width(-1) and height(-1) of chart should be greater than 0,
        please check the style of container, or the props width(100%) and height(100%),
        or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
-       height and width.
+       height and width. (file:///Users/full-stack-sdk01/Downloads/ScheduleWebNew/frontend/.next/dev/static/chunks/0ahj_next_dist_0rnfv0o._.js:2431:13)
 [browser] The width(-1) and height(-1) of chart should be greater than 0,
        please check the style of container, or the props width(100%) and height(100%),
        or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
-       height and width.
+       height and width. (file:///Users/full-stack-sdk01/Downloads/ScheduleWebNew/frontend/.next/dev/static/chunks/0ahj_next_dist_0rnfv0o._.js:2431:13)
 [browser] The width(-1) and height(-1) of chart should be greater than 0,
        please check the style of container, or the props width(100%) and height(100%),
        or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
-       height and width.
+       height and width. (file:///Users/full-stack-sdk01/Downloads/ScheduleWebNew/frontend/.next/dev/static/chunks/0ahj_next_dist_0rnfv0o._.js:2431:13)
 [browser] The width(-1) and height(-1) of chart should be greater than 0,
        please check the style of container, or the props width(100%) and height(100%),
        or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
-       height and width.
+       height and width. (file:///Users/full-stack-sdk01/Downloads/ScheduleWebNew/frontend/.next/dev/static/chunks/0ahj_next_dist_0rnfv0o._.js:2431:13)
+ GET / 200 in 51ms (next.js: 9ms, application-code: 42ms)
 [browser] The width(-1) and height(-1) of chart should be greater than 0,
        please check the style of container, or the props width(100%) and height(100%),
        or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
-       height and width.
+       height and width. (file:///Users/full-stack-sdk01/Downloads/ScheduleWebNew/frontend/.next/dev/static/chunks/0ahj_next_dist_0rnfv0o._.js:2431:13)
 [browser] The width(-1) and height(-1) of chart should be greater than 0,
        please check the style of container, or the props width(100%) and height(100%),
        or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
-       height and width.
+       height and width. (file:///Users/full-stack-sdk01/Downloads/ScheduleWebNew/frontend/.next/dev/static/chunks/0ahj_next_dist_0rnfv0o._.js:2431:13)
 [browser] The width(-1) and height(-1) of chart should be greater than 0,
        please check the style of container, or the props width(100%) and height(100%),
        or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
-       height and width.
+       height and width. (file:///Users/full-stack-sdk01/Downloads/ScheduleWebNew/frontend/.next/dev/static/chunks/0ahj_next_dist_0rnfv0o._.js:2431:13)
 [browser] The width(-1) and height(-1) of chart should be greater than 0,
        please check the style of container, or the props width(100%) and height(100%),
        or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
-       height and width.
+       height and width. (file:///Users/full-stack-sdk01/Downloads/ScheduleWebNew/frontend/.next/dev/static/chunks/0ahj_next_dist_0rnfv0o._.js:2431:13)
 [browser] The width(-1) and height(-1) of chart should be greater than 0,
        please check the style of container, or the props width(100%) and height(100%),
        or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
-       height and width.
+       height and width. (file:///Users/full-stack-sdk01/Downloads/ScheduleWebNew/frontend/.next/dev/static/chunks/0ahj_next_dist_0rnfv0o._.js:2431:13)
 [browser] The width(-1) and height(-1) of chart should be greater than 0,
        please check the style of container, or the props width(100%) and height(100%),
        or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
-       height and width.
- GET / 200 in 48ms (next.js: 13ms, application-code: 34ms)
+       height and width. (file:///Users/full-stack-sdk01/Downloads/ScheduleWebNew/frontend/.next/dev/static/chunks/0ahj_next_dist_0rnfv0o._.js:2431:13)
+ GET / 200 in 47ms (next.js: 7ms, application-code: 40ms)
+[browser] The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width. (file:///Users/full-stack-sdk01/Downloads/ScheduleWebNew/frontend/.next/dev/static/chunks/0ahj_next_dist_0rnfv0o._.js:2431:13)
+[browser] The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width. (file:///Users/full-stack-sdk01/Downloads/ScheduleWebNew/frontend/.next/dev/static/chunks/0ahj_next_dist_0rnfv0o._.js:2431:13)
+[browser] The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width. (file:///Users/full-stack-sdk01/Downloads/ScheduleWebNew/frontend/.next/dev/static/chunks/0ahj_next_dist_0rnfv0o._.js:2431:13)
+[browser] The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width. (file:///Users/full-stack-sdk01/Downloads/ScheduleWebNew/frontend/.next/dev/static/chunks/0ahj_next_dist_0rnfv0o._.js:2431:13)
+[browser] The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width. (file:///Users/full-stack-sdk01/Downloads/ScheduleWebNew/frontend/.next/dev/static/chunks/0ahj_next_dist_0rnfv0o._.js:2431:13)
+[browser] The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width. (file:///Users/full-stack-sdk01/Downloads/ScheduleWebNew/frontend/.next/dev/static/chunks/0ahj_next_dist_0rnfv0o._.js:2431:13)
+[browser] MUI: You have provided an out-of-range value `Platform` for the select component.
+Consider providing a value that matches one of the available options or ''.
+The available values are `Mobile Team`, `OS Team`, `Tester Team`, `Tablet Team`, `Web Team`, `Passthrough Team`, `Server API Team`.
+[browser] MUI: You have provided an out-of-range value `Platform` for the select component.
+Consider providing a value that matches one of the available options or ''.
+The available values are `Mobile Team`, `OS Team`, `Tester Team`, `Tablet Team`, `Web Team`, `Passthrough Team`, `Server API Team`.
+[browser] MUI: You have provided an out-of-range value `Platform` for the select component.
+Consider providing a value that matches one of the available options or ''.
+The available values are `Mobile Team`, `OS Team`, `Tester Team`, `Tablet Team`, `Web Team`, `Passthrough Team`, `Server API Team`.
+[browser] MUI: You have provided an out-of-range value `Platform` for the select component.
+Consider providing a value that matches one of the available options or ''.
+The available values are `Mobile Team`, `OS Team`, `Tester Team`, `Tablet Team`, `Web Team`, `Passthrough Team`, `Server API Team`.
+[browser] MUI: You have provided an out-of-range value `Platform` for the select component.
+Consider providing a value that matches one of the available options or ''.
+The available values are `Mobile Team`, `OS Team`, `Tester Team`, `Tablet Team`, `Web Team`, `Passthrough Team`, `Server API Team`.
+[browser] MUI: You have provided an out-of-range value `Platform` for the select component.
+Consider providing a value that matches one of the available options or ''.
+The available values are `Mobile Team`, `OS Team`, `Tester Team`, `Tablet Team`, `Web Team`, `Passthrough Team`, `Server API Team`.
