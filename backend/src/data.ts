@@ -54,7 +54,7 @@ const MEMBER_TEAMS: Record<string, string> = {
 
 const DEFAULT_MEMBER_NAMES: string[] = [
   "Châu Gia Kiên",
-  "Hoàng Văn Nhật Anhh",
+  "Hoàng Văn Nhật Anh",
   "Lê Bá Kha",
   "Lê Bùi Hải Uyên",
   "Lê Nguyễn Thục Nhi",
