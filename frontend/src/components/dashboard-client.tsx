@@ -8,14 +8,12 @@ import {
   Card,
   CircularProgress,
   Container,
-  Chip,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
   Drawer,
   Grid,
-  LinearProgress,
   MenuItem,
   Stack,
   Tab,
@@ -25,7 +23,11 @@ import {
   Tooltip as MuiTooltip,
   Typography,
 } from "@mui/material";
-import { useMemo, useState, useEffect } from "react";
+import { memo, useMemo, useState, useEffect, useCallback } from "react";
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+import { DatePicker } from "@mui/x-date-pickers/DatePicker";
+import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
+import { PickerDay, type PickerDayProps } from "@mui/x-date-pickers/PickerDay";
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Member, Project, Task } from "@shared/types/domain";
@@ -49,6 +51,7 @@ import ProjectSelect from "@/components/project-select";
 import KpiCard from "@/components/kpi-card";
 import DataTable from "@/components/data-table";
 import type { ColumnDef } from "@tanstack/react-table";
+import { format } from "date-fns";
 
 /** Map priority -> display label */
 function priorityLabel(priority: Task["priority"]): string {
@@ -75,6 +78,69 @@ function escapeCsvField(value: string): string {
     return `"${value.replace(/"/g, '""')}"`;
   }
   return value;
+}
+
+function countBusinessDaysInclusive(startDateStr: string, endDateStr: string): number {
+  const start = new Date(startDateStr);
+  const end = new Date(endDateStr);
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) return 0;
+
+  const startOnly = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+  const endOnly = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+  if (endOnly.getTime() < startOnly.getTime()) return 0;
+  if (endOnly.getTime() === startOnly.getTime()) return 1;
+
+  let count = 0;
+  const cursor = new Date(startOnly);
+  while (cursor.getTime() <= endOnly.getTime()) {
+    const day = cursor.getDay(); // 0: Sun, 6: Sat
+    if (day >= 1 && day <= 5) count += 1;
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return count;
+}
+
+function toDateOrNull(value: string | undefined): Date | null {
+  if (!value) return null;
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function toIsoDate(value: Date | null): string | undefined {
+  if (!value) return undefined;
+  return format(value, "yyyy-MM-dd");
+}
+
+function isTaskOverdue(task: Task, today: Date): boolean {
+  const dueDate = new Date(task.dueDate);
+  if (isNaN(dueDate.getTime())) return false;
+
+  const startDate = task.plannedStartDate ? new Date(task.plannedStartDate) : null;
+  const hasInvalidRange = Boolean(startDate && !isNaN(startDate.getTime()) && dueDate < startDate);
+  if (hasInvalidRange) return true;
+
+  const progress = task.completedAt ? 100 : (task.progress ?? 0);
+  if (progress >= 100) return false;
+
+  return dueDate < today;
+}
+
+function WeekendDay(props: PickerDayProps) {
+  const dayOfWeek = props.day.getDay(); // 0: Sunday, 6: Saturday
+  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+  return (
+    <PickerDay
+      {...props}
+      sx={{
+        ...(isWeekend
+          ? {
+              color: "error.light",
+              backgroundColor: props.selected ? "rgba(244, 67, 54, 0.25)" : "rgba(244, 67, 54, 0.08)",
+            }
+          : {}),
+      }}
+    />
+  );
 }
 
 /** Export an array of TaskTableRow to a UTF-8-with-BOM CSV file */
@@ -133,6 +199,156 @@ interface TaskTableRow {
   progress: number;
   raw: Task;
 }
+
+const ProgressEditor = memo(function ProgressEditor({
+  taskId,
+  currentProgress,
+  canMutate,
+  isOverdue,
+  isDone,
+  onCommit,
+}: {
+  taskId: string;
+  currentProgress: number;
+  canMutate: boolean;
+  isOverdue: boolean;
+  isDone: boolean;
+  onCommit: (taskId: string, value: number, currentProgress: number) => void;
+}) {
+  const [draft, setDraft] = useState<string>(String(currentProgress));
+  const fillPercent = Math.min(100, Math.max(0, Number.isFinite(Number(draft)) ? Number(draft) : currentProgress));
+
+  return (
+    <Box
+      sx={{
+        position: "relative",
+        width: 120,
+        height: 28,
+        borderRadius: 1,
+        overflow: "hidden",
+        border: "1px solid",
+        borderColor: "grey.300",
+        bgcolor: "grey.100",
+        "&::before": {
+          content: '""',
+          position: "absolute",
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: `${fillPercent}%`,
+          bgcolor: isOverdue ? "rgba(255, 152, 152, 0.45)" : isDone ? "rgba(129, 199, 132, 0.65)" : "rgba(129, 199, 132, 0.55)",
+          transition: "width 120ms ease",
+        },
+      }}
+    >
+      <TextField
+        size="small"
+        variant="standard"
+        value={`${draft}%`}
+        disabled={!canMutate}
+        InputProps={{ disableUnderline: true }}
+        inputProps={{ style: { textAlign: "center", padding: "3px 6px", fontWeight: 700, color: "#000" } }}
+        sx={{
+          position: "absolute",
+          inset: 0,
+          zIndex: 1,
+          "& .MuiInputBase-root": { height: "100%" },
+          "& input": { color: "#000 !important" },
+        }}
+        onChange={(e) => {
+          const digits = e.target.value.replace(/[^0-9]/g, "");
+          if (!digits) {
+            setDraft("0");
+            return;
+          }
+          const normalized = String(Math.min(100, Math.max(0, Number(digits))));
+          setDraft(normalized);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            const parsed = Number(draft);
+            const clamped = Math.min(100, Math.max(0, Number.isFinite(parsed) ? parsed : currentProgress));
+            onCommit(taskId, clamped, currentProgress);
+          }
+          if (e.key === "Escape") {
+            e.preventDefault();
+            setDraft(String(currentProgress));
+          }
+        }}
+      />
+    </Box>
+  );
+});
+
+const TaskDescriptionEditor = memo(function TaskDescriptionEditor({
+  taskId,
+  currentTitle,
+  canMutate,
+  onCommit,
+}: {
+  taskId: string;
+  currentTitle: string;
+  canMutate: boolean;
+  onCommit: (taskId: string, value: string, currentTitle: string) => void;
+}) {
+  const [draft, setDraft] = useState<string>(currentTitle);
+
+  return (
+    <TextField
+      size="small"
+      variant="standard"
+      fullWidth
+      value={draft}
+      disabled={!canMutate}
+      InputProps={{ disableUnderline: true }}
+      onChange={(e) => setDraft(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          onCommit(taskId, draft, currentTitle);
+        }
+        if (e.key === "Escape") {
+          e.preventDefault();
+          setDraft(currentTitle);
+        }
+      }}
+      sx={{
+        "& input": { py: 0.5, whiteSpace: "normal", overflow: "visible" },
+      }}
+    />
+  );
+});
+
+const InlineDateEditor = memo(function InlineDateEditor({
+  value,
+  canMutate,
+  onChange,
+}: {
+  value: string;
+  canMutate: boolean;
+  onChange: (next: string) => void;
+}) {
+  return (
+    <DatePicker
+      value={toDateOrNull(value)}
+      onChange={(next) => {
+        const normalized = toIsoDate(next);
+        if (normalized) onChange(normalized);
+      }}
+      disabled={!canMutate}
+      slots={{ day: WeekendDay }}
+      format="MM/dd/yyyy"
+      slotProps={{
+        textField: {
+          size: "small",
+          variant: "standard",
+          sx: { "& input": { py: 0.5, width: 92 } },
+        },
+      }}
+    />
+  );
+});
 
 export default function DashboardClient() {
   const queryClient = useQueryClient();
@@ -264,6 +480,23 @@ export default function DashboardClient() {
   const members = useMemo(() => membersQuery.data ?? [], [membersQuery.data]);
   const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data]);
 
+  const commitProgress = useCallback(
+    (taskId: string, value: number, currentProgress: number) => {
+      if (value !== currentProgress) {
+        updateTaskMutation.mutate({ id: taskId, payload: { progress: value } });
+      }
+    },
+    [updateTaskMutation],
+  );
+  const commitTaskTitle = useCallback(
+    (taskId: string, value: string, currentTitle: string) => {
+      const next = value.trim();
+      if (!next || next === currentTitle) return;
+      updateTaskMutation.mutate({ id: taskId, payload: { title: next } });
+    },
+    [updateTaskMutation],
+  );
+
   /** Default IDs for new task creation */
   const defaultProjectId = useMemo(
     () => projects.find((p) => p.name === "RSPro Production")?.id ?? projects[0]?.id ?? "",
@@ -307,13 +540,10 @@ export default function DashboardClient() {
     return filteredTasks.map((task) => {
       const project = projects.find((p) => p.id === task.projectId);
       const member = members.find((m) => m.id === task.assigneeMemberId);
-      const dueMs = new Date(task.dueDate).getTime();
       // Use plannedStartDate if set; if not, use today only after mount (avoids hydration mismatch)
       // During SSR / before mount, fallback to empty string → format shows "Invalid Date" but harmless
       const startDateStr = task.plannedStartDate ?? (mounted ? new Date().toISOString().slice(0, 10) : "");
-      const days = mounted && startDateStr
-        ? Math.ceil((dueMs - new Date(startDateStr).getTime()) / 86400000)
-        : 0;
+      const days = mounted && startDateStr ? countBusinessDaysInclusive(startDateStr, task.dueDate) : 0;
       // Progress: completedAt => 100, otherwise stored progress or 0
       const progress = task.completedAt ? 100 : (task.progress ?? 0);
       return {
@@ -336,7 +566,7 @@ export default function DashboardClient() {
   const summary = useMemo(() => {
     const today = mounted ? new Date() : null;
     const openTasks = filteredTasks.filter((task) => !(task.completedAt || task.progress === 100));
-    const overdueTasks = today ? openTasks.filter((task) => new Date(task.dueDate) < today).length : 0;
+    const overdueTasks = today ? filteredTasks.filter((task) => isTaskOverdue(task, today)).length : 0;
     const activeProjects =
       selectedProjectId === "all"
         ? projects.filter((project) => project.status === "active").length
@@ -376,7 +606,7 @@ export default function DashboardClient() {
     const now = mounted ? new Date() : null;
     return filteredMembers.map((member) => {
       const ownTasks = filteredTasks.filter((task) => task.assigneeMemberId === member.id);
-      const overdueCount = now ? ownTasks.filter((task) => !task.completedAt && new Date(task.dueDate) < now).length : 0;
+      const overdueCount = now ? ownTasks.filter((task) => isTaskOverdue(task, now)).length : 0;
       const avgDelayDays =
         ownTasks.length === 0
           ? 0
@@ -403,17 +633,10 @@ export default function DashboardClient() {
     return members.map((member) => ({ name: member.fullName, tasks: map.get(member.id) ?? 0 }));
   }, [members, filteredTasks]);
 
-  /** Overdue chips — only compute after mount to avoid hydration mismatch */
-  const overdueChips = useMemo(() => {
-    if (!mounted) return null;
+  const overdueTaskRows = useMemo(() => {
+    if (!mounted) return [];
     const today = new Date();
-    return taskTableRows
-      .filter((row) => row.raw.progress !== 100 && new Date(row.raw.dueDate) < today)
-      .slice(0, 6)
-      .map((row) => (
-        <Chip key={row.id} color="error" size="small" label={`${row.taskCode} overdue`} />
-      ));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return taskTableRows.filter((row) => isTaskOverdue(row.raw, today));
   }, [taskTableRows, mounted]);
   if (membersQuery.error || projectsQuery.error || tasksQuery.error) {
     return (
@@ -522,19 +745,13 @@ Neu la production: Vercel can NEXT_PUBLIC_API_BASE_URL = URL Render (vd https://
       header: "Task Description",
       accessorKey: "title",
       cell: ({ row }) => (
-        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-          <TextField
-            size="small"
-            variant="standard"
-            fullWidth
-            value={row.original.title}
-            disabled={!canMutate}
-            onChange={(e) =>
-              updateTaskMutation.mutate({ id: row.original.id, payload: { title: e.target.value } })
-            }
-            sx={{
-              "& input": { py: 0.5, whiteSpace: "normal", overflow: "visible" },
-            }}
+        <Box sx={{ flexGrow: 1, minWidth: 320 }}>
+          <TaskDescriptionEditor
+            key={`${row.original.id}-${row.original.title}`}
+            taskId={row.original.id}
+            currentTitle={row.original.title}
+            canMutate={canMutate}
+            onCommit={commitTaskTitle}
           />
         </Box>
       ),
@@ -551,6 +768,7 @@ Neu la production: Vercel can NEXT_PUBLIC_API_BASE_URL = URL Render (vd https://
           fullWidth
           value={row.original.raw.assigneeMemberId}
           disabled={!canMutate}
+          InputProps={{ disableUnderline: true }}
           onChange={(e) =>
             updateTaskMutation.mutate({ id: row.original.id, payload: { assigneeMemberId: e.target.value } })
           }
@@ -569,17 +787,12 @@ Neu la production: Vercel can NEXT_PUBLIC_API_BASE_URL = URL Render (vd https://
       id: "startDate",
       header: "Start Day",
       cell: ({ row }) => (
-        <TextField
-          type="date"
-          size="small"
-          variant="standard"
+        <InlineDateEditor
           value={row.original.raw.plannedStartDate ?? new Date().toISOString().slice(0, 10)}
-          disabled={!canMutate}
-          onChange={(e) =>
-            updateTaskMutation.mutate({ id: row.original.id, payload: { plannedStartDate: e.target.value } })
+          canMutate={canMutate}
+          onChange={(next) =>
+            updateTaskMutation.mutate({ id: row.original.id, payload: { plannedStartDate: next } })
           }
-          InputLabelProps={{ shrink: true }}
-          sx={{ "& input": { py: 0.5, width: 130 } }}
         />
       ),
     },
@@ -598,17 +811,12 @@ Neu la production: Vercel can NEXT_PUBLIC_API_BASE_URL = URL Render (vd https://
       id: "completeDate",
       header: "Complete",
       cell: ({ row }) => (
-        <TextField
-          type="date"
-          size="small"
-          variant="standard"
+        <InlineDateEditor
           value={row.original.raw.dueDate}
-          disabled={!canMutate}
-          onChange={(e) =>
-            updateTaskMutation.mutate({ id: row.original.id, payload: { dueDate: e.target.value } })
+          canMutate={canMutate}
+          onChange={(next) =>
+            updateTaskMutation.mutate({ id: row.original.id, payload: { dueDate: next } })
           }
-          InputLabelProps={{ shrink: true }}
-          sx={{ "& input": { py: 0.5, width: 130 } }}
         />
       ),
     },
@@ -624,6 +832,7 @@ Neu la production: Vercel can NEXT_PUBLIC_API_BASE_URL = URL Render (vd https://
           fullWidth
           value={row.original.raw.priority}
           disabled={!canMutate}
+          InputProps={{ disableUnderline: true }}
           onChange={(e) =>
             updateTaskMutation.mutate({
               id: row.original.id,
@@ -639,7 +848,7 @@ Neu la production: Vercel can NEXT_PUBLIC_API_BASE_URL = URL Render (vd https://
         </TextField>
       ),
     },
-    // Progress — Typography %, Tooltip, LinearProgress, editable input
+    // Progress — single editable progress box
     {
       id: "progress",
       header: "Progress",
@@ -649,15 +858,22 @@ Neu la production: Vercel can NEXT_PUBLIC_API_BASE_URL = URL Render (vd https://
         // Avoid hydration mismatch: compute overdue only after mount
         if (!mounted) {
           return (
-            <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 140 }}>
-              <Typography variant="body2" fontWeight={700}>{progress}%</Typography>
-              <LinearProgress variant="determinate" value={progress} sx={{ flex: 1, height: 7, borderRadius: 3, bgcolor: "grey.200" }} />
+            <Box sx={{ minWidth: 120 }}>
+              <ProgressEditor
+                key={`${row.original.id}-${progress}`}
+                taskId={row.original.id}
+                currentProgress={progress}
+                canMutate={canMutate}
+                isOverdue={false}
+                isDone={progress === 100}
+                onCommit={commitProgress}
+              />
             </Box>
           );
         }
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        const isOverdue = progress < 100 && dueDate < today;
+        const isOverdue = isTaskOverdue(row.original.raw, today);
         const daysOverdue = isOverdue
           ? Math.ceil((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24))
           : 0;
@@ -669,44 +885,20 @@ Neu la production: Vercel can NEXT_PUBLIC_API_BASE_URL = URL Render (vd https://
               : "On track";
 
         return (
-          <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 140 }}>
+          <Box sx={{ minWidth: 120 }}>
             <MuiTooltip title={tooltipTitle} arrow>
-              <Typography
-                variant="body2"
-                fontWeight={700}
-                color={isOverdue ? "error.main" : progress === 100 ? "success.main" : "text.primary"}
-                sx={{ minWidth: 32, textAlign: "right", cursor: "default" }}
-              >
-                {progress}%
-              </Typography>
+              <Box>
+                <ProgressEditor
+                  key={`${row.original.id}-${progress}`}
+                  taskId={row.original.id}
+                  currentProgress={progress}
+                  canMutate={canMutate}
+                  isOverdue={isOverdue}
+                  isDone={progress === 100}
+                  onCommit={commitProgress}
+                />
+              </Box>
             </MuiTooltip>
-            <LinearProgress
-              variant="determinate"
-              value={progress}
-              sx={{
-                flex: 1,
-                height: 7,
-                borderRadius: 3,
-                bgcolor: "grey.200",
-                "& .MuiLinearProgress-bar": {
-                  bgcolor: isOverdue ? "error.main" : progress === 100 ? "success.main" : "info.main",
-                  borderRadius: 3,
-                },
-              }}
-            />
-            <TextField
-              type="number"
-              size="small"
-              variant="standard"
-              value={String(progress)}
-              disabled={!canMutate}
-              inputProps={{ min: 0, max: 100, style: { width: 44, textAlign: "center", padding: "4px 2px" } }}
-              onChange={(e) => {
-                const val = Number(e.target.value);
-                const clamped = Math.min(100, Math.max(0, isNaN(val) ? 0 : val));
-                updateTaskMutation.mutate({ id: row.original.id, payload: { progress: clamped } });
-              }}
-            />
           </Box>
         );
       },
@@ -714,6 +906,7 @@ Neu la production: Vercel can NEXT_PUBLIC_API_BASE_URL = URL Render (vd https://
   ];
 
   return (
+    <LocalizationProvider dateAdapter={AdapterDateFns}>
     <Box sx={{ display: "flex", minHeight: "100vh" }}>
       <Drawer variant="permanent" sx={{ width: 220, "& .MuiDrawer-paper": { width: 220, p: 2 } }}>
         <Typography variant="h6" fontWeight={700} sx={{ mb: 2 }}>
@@ -751,7 +944,7 @@ Neu la production: Vercel can NEXT_PUBLIC_API_BASE_URL = URL Render (vd https://
             </TextField>
           </Toolbar>
         </AppBar>
-        <Container sx={{ py: 4 }}>
+        <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 3 } }}>
           <Stack spacing={3}>
             {/* Filter — Dashboard tab: Due from / Due to only */}
             {activeTab === 0 && (
@@ -987,12 +1180,13 @@ Neu la production: Vercel can NEXT_PUBLIC_API_BASE_URL = URL Render (vd https://
                   </Button>
                   </Stack>
                 </Stack>
-                <DataTable columns={taskColumns} data={taskTableRows} />
+                <DataTable columns={taskColumns} data={taskTableRows} minTableWidth={1500} />
                 {taskTableRows.length === 0 ? <Alert severity="info">Khong co task phu hop voi filter hien tai.</Alert> : null}
-                <Stack direction="row" spacing={1}>
-                  <Typography variant="body2">Overdue highlights:</Typography>
-                  {overdueChips}
-                </Stack>
+                <Typography variant="body2" fontWeight={600}>
+                  Overdue highlights:
+                </Typography>
+                <DataTable columns={taskColumns} data={overdueTaskRows} minTableWidth={1500} />
+                {overdueTaskRows.length === 0 ? <Alert severity="info">Khong co task overdue.</Alert> : null}
               </>
             ) : null}
           </Stack>
@@ -1206,5 +1400,6 @@ Neu la production: Vercel can NEXT_PUBLIC_API_BASE_URL = URL Render (vd https://
       </Dialog>
 
     </Box>
+    </LocalizationProvider>
   );
 }

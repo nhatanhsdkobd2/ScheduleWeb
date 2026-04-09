@@ -9,15 +9,37 @@ import { addAuditLog, auditLogs, createMember, createProject, createReportRecord
 import { generateExcelReport, generatePdfReport } from "./report-generator.js";
 const EXPORT_DIR = path.resolve(process.cwd(), "exports");
 const idempotencyCache = new Map();
-const allowedOrigin = process.env.ALLOWED_ORIGIN ?? "http://localhost:3000";
+/**
+ * CORS: mặc định cho phép mọi origin (`origin: true` = echo header Origin).
+ * Đặt ALLOWED_ORIGIN=https://mot-domain.com để chỉ cho phép một origin (không thêm / cuối).
+ * ALLOWED_ORIGIN=* giữ hành vi “mọi domain” (giống không set).
+ */
+function normalizeOrigin(url) {
+    return url.replace(/\/+$/, "");
+}
+const rawOrigin = process.env.ALLOWED_ORIGIN?.trim();
+const explicitOrigin = rawOrigin && rawOrigin !== "*" ? normalizeOrigin(rawOrigin) : undefined;
+const corsOrigin = explicitOrigin ?? true;
 const app = express();
+// Ensure in-memory default seed data is ready before first request.
+// This prevents race conditions when frontend requests /tasks before /members or /projects.
+getProjectsWithSeed();
 // Trust proxy so express-rate-limit can read X-Forwarded-For header
 app.set("trust proxy", 1);
 app.use(cors({
-    origin: allowedOrigin,
+    origin: corsOrigin,
+    methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS", "HEAD"],
+    allowedHeaders: ["Content-Type", "Authorization", "x-role", "X-Role", "Idempotency-Key"],
+    optionsSuccessStatus: 204,
 }));
 app.use(express.json());
-app.use(helmet());
+// API JSON: tắt CSP; tắt COOP/COEP mặc định (dễ gây lỗi “CORS” trên fetch cross-origin); CORP = cross-origin.
+app.use(helmet({
+    contentSecurityPolicy: false,
+    crossOriginOpenerPolicy: false,
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+}));
 app.use(rateLimit({
     windowMs: 60 * 1000,
     max: 120,
