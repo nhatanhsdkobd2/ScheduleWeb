@@ -3,7 +3,15 @@
 import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from "@tanstack/react-table";
 import { Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from "@mui/material";
 
-export default function DataTable<TData>({ columns, data }: { columns: ColumnDef<TData>[]; data: TData[] }) {
+export default function DataTable<TData>({
+  columns,
+  data,
+  minTableWidth,
+}: {
+  columns: ColumnDef<TData>[];
+  data: TData[];
+  minTableWidth?: number;
+}) {
   const table = useReactTable({
     data,
     columns,
@@ -11,8 +19,8 @@ export default function DataTable<TData>({ columns, data }: { columns: ColumnDef
   });
 
   return (
-    <TableContainer component={Paper} variant="outlined">
-      <Table size="small">
+    <TableContainer component={Paper} variant="outlined" sx={{ overflowX: "auto" }}>
+      <Table size="small" sx={minTableWidth ? { minWidth: minTableWidth } : undefined}>
         <TableHead>
           {table.getHeaderGroups().map((group) => (
             <TableRow key={group.id}>

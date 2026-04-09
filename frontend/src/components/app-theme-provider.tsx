@@ -8,6 +8,9 @@ const theme = createTheme({
     primary: { main: "#2563eb" },
     background: { default: "#f8fafc" },
   },
+  typography: {
+    fontFamily: "Aptos, \"Segoe UI\", Arial, Helvetica, sans-serif",
+  },
   shape: { borderRadius: 10 },
 });
 

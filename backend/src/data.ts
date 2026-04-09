@@ -12,6 +12,7 @@ import type {
   TaskHistoryItem,
   WeeklyReportRow,
 } from "../../shared/types/domain.js";
+import { existsSync, readFileSync } from "node:fs";
 
 export const members: Member[] = [];
 export const projects: Project[] = [];
@@ -173,6 +174,152 @@ const DEMO_TASKS: DemoTask[] = [
   { taskCode: "TSK-008", title: "UAT preparation & documentation", dueDate: "2026-05-10", status: "todo", priority: "medium", plannedStartDate: "2026-05-03" },
 ];
 
+type CsvSeedRow = {
+  projectName: string;
+  title: string;
+  assigneeName: string;
+  progress: number;
+  start: string;
+  complete: string;
+  priority: string;
+};
+
+const TASK_SEED_CSV_PATHS = [
+  process.env.SCHEDULEWEB_TASK_SEED_CSV_PATH,
+  "C:/Users/pc/Desktop/R&D Software Planning - 2026 - ThuanNgo Team(April2026).csv",
+].filter(Boolean) as string[];
+const DEFAULT_SEED_TASK_LIMIT = 30;
+
+function enforceSeedTaskLimit(): void {
+  if (tasks.length <= DEFAULT_SEED_TASK_LIMIT) return;
+  tasks.splice(DEFAULT_SEED_TASK_LIMIT);
+}
+
+function parseCsvLine(line: string): string[] {
+  const out: string[] = [];
+  let current = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    const next = i + 1 < line.length ? line[i + 1] : "";
+    if (ch === "\"") {
+      if (inQuotes && next === "\"") {
+        current += "\"";
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+    if (ch === "," && !inQuotes) {
+      out.push(current);
+      current = "";
+      continue;
+    }
+    current += ch;
+  }
+  out.push(current);
+  return out.map((v) => v.trim());
+}
+
+function parseSeedProgress(value: string): number {
+  const n = Number.parseInt(value.replace("%", "").trim(), 10);
+  if (Number.isNaN(n)) return 0;
+  return Math.max(0, Math.min(100, n));
+}
+
+function parseSeedDate(value: string): string | undefined {
+  const raw = value.trim();
+  if (!raw) return undefined;
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return undefined;
+  return d.toISOString().slice(0, 10);
+}
+
+function normalizePersonKey(value: string): string {
+  return stripDiacritics(value)
+    .toLowerCase()
+    .replace(/[^a-z\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function resolveAssigneeId(name: string): string | undefined {
+  const normalized = normalizePersonKey(name);
+  if (!normalized) return undefined;
+
+  const exact = members.find((m) => normalizePersonKey(m.fullName) === normalized);
+  if (exact) return exact.id;
+
+  const targetTokens = new Set(normalized.split(" ").filter(Boolean));
+  const targetArr = [...targetTokens];
+  const targetFirst = targetArr[0] ?? "";
+  const targetLast = targetArr[targetArr.length - 1] ?? "";
+  let bestId: string | undefined;
+  let bestScore = 0;
+  for (const member of members) {
+    const memberTokens = normalizePersonKey(member.fullName).split(" ").filter(Boolean);
+    if (memberTokens.length === 0) continue;
+    let overlap = 0;
+    for (const token of memberTokens) {
+      if (targetTokens.has(token)) overlap += 1;
+    }
+    const memberFirst = memberTokens[0] ?? "";
+    const memberLast = memberTokens[memberTokens.length - 1] ?? "";
+    const edgeBonus = (memberFirst === targetFirst ? 0.15 : 0) + (memberLast === targetLast ? 0.2 : 0);
+    const score = overlap / Math.max(memberTokens.length, targetTokens.size || 1) + edgeBonus;
+    if (score > bestScore) {
+      bestScore = score;
+      bestId = member.id;
+    }
+  }
+  return bestScore >= 0.25 ? bestId : undefined;
+}
+
+function resolveProjectIdByName(projectName: string, defaultProjectId: string): string {
+  const cleaned = projectName.trim();
+  if (!cleaned) return defaultProjectId;
+  const exact = projects.find((p) => p.name.toLowerCase() === cleaned.toLowerCase());
+  if (exact) return exact.id;
+  const includes = projects.find((p) => p.name.toLowerCase().includes(cleaned.toLowerCase()));
+  if (includes) return includes.id;
+  return defaultProjectId;
+}
+
+function loadCsvSeedRows(): CsvSeedRow[] {
+  for (const p of TASK_SEED_CSV_PATHS) {
+    if (!existsSync(p)) continue;
+    try {
+      const raw = readFileSync(p, "utf8");
+      const lines = raw.split(/\r?\n/).map((l) => l.trimEnd());
+      const dataLines = lines.slice(3).filter((line) => line.trim() !== "" && !line.startsWith(",,,"));
+      const rows: CsvSeedRow[] = [];
+      for (const line of dataLines) {
+        const cols = parseCsvLine(line);
+        if (cols.length < 9) continue;
+        const title = cols[2] ?? "";
+        const assigneeName = cols[3] ?? "";
+        const start = cols[5] ?? "";
+        const complete = cols[7] ?? "";
+        if (!title.trim() || !assigneeName.trim() || !start.trim() || !complete.trim()) continue;
+        rows.push({
+          projectName: cols[1] ?? "",
+          title: title.trim(),
+          assigneeName: assigneeName.trim(),
+          progress: parseSeedProgress(cols[4] ?? "0%"),
+          start: start.trim(),
+          complete: complete.trim(),
+          priority: (cols[8] ?? "Normal").trim(),
+        });
+      }
+      if (rows.length > 0) return rows;
+    } catch {
+      // try next path
+    }
+  }
+  return [];
+}
+
 // ── Auto-seed: run once per server lifecycle ───────────────────────────────
 let membersSeeded = false;
 let projectsSeeded = false;
@@ -221,6 +368,7 @@ function seedDefaultProjects(): void {
   // Default to InnovaProSDK (INN-001) for demo tasks — spread across 8 members (one per team)
   const inn001Project = projects.find((p) => p.projectCode === "INN-001");
   const demoProjectId = inn001Project?.id ?? firstProjectId;
+  const csvSeedRows = loadCsvSeedRows();
   const demoAssignees = [
     members.find((m) => m.fullName === "Hoàng Văn Nhật Anh"),
     members.find((m) => m.fullName === "Lê Quang Duy"),
@@ -233,25 +381,61 @@ function seedDefaultProjects(): void {
   ].filter(Boolean);
   if (demoAssignees.length > 0) {
     const seededTaskCodes = new Set(tasks.map((t) => t.taskCode));
-    DEMO_TASKS.forEach((demo, index) => {
-      if (!seededTaskCodes.has(demo.taskCode) && demoProjectId) {
-        const assignee = demoAssignees[index % demoAssignees.length];
-        if (assignee) {
-          tasks.push({
-            id: createId("t"),
-            taskCode: demo.taskCode,
-            title: demo.title,
-            projectId: demoProjectId,
-            assigneeMemberId: assignee.id,
-            dueDate: demo.dueDate,
-            status: demo.status,
-            priority: demo.priority,
-            completedAt: demo.completedAt,
-            plannedStartDate: demo.plannedStartDate,
-          });
+    if (csvSeedRows.length > 0) {
+      let nextNum = 1;
+      csvSeedRows.slice(0, DEFAULT_SEED_TASK_LIMIT).forEach((row) => {
+        const plannedStartDate = parseSeedDate(row.start);
+        const dueDate = parseSeedDate(row.complete);
+        if (!plannedStartDate || !dueDate) return;
+        const assigneeId =
+          resolveAssigneeId(row.assigneeName) ??
+          members.find((m) => m.fullName === "Hoàng Văn Nhật Anh")?.id ??
+          members[0]?.id;
+        if (!assigneeId) return;
+        const taskCode = `TSK-${String(nextNum++).padStart(3, "0")}`;
+        if (seededTaskCodes.has(taskCode)) return;
+        const progress = row.progress;
+        const status: Task["status"] = progress >= 100 ? "done" : progress > 0 ? "in_progress" : "todo";
+        const priorityRaw = row.priority.toLowerCase();
+        const priority: Task["priority"] =
+          priorityRaw.includes("critical") ? "critical" :
+          priorityRaw.includes("high") ? "high" :
+          priorityRaw.includes("low") ? "low" : "medium";
+        tasks.push({
+          id: createId("t"),
+          taskCode,
+          title: row.title,
+          projectId: resolveProjectIdByName(row.projectName, demoProjectId),
+          assigneeMemberId: assigneeId,
+          dueDate,
+          status,
+          priority,
+          progress,
+          completedAt: progress >= 100 ? dueDate : undefined,
+          plannedStartDate,
+        });
+      });
+    } else {
+      DEMO_TASKS.slice(0, DEFAULT_SEED_TASK_LIMIT).forEach((demo, index) => {
+        if (!seededTaskCodes.has(demo.taskCode) && demoProjectId) {
+          const assignee = demoAssignees[index % demoAssignees.length];
+          if (assignee) {
+            tasks.push({
+              id: createId("t"),
+              taskCode: demo.taskCode,
+              title: demo.title,
+              projectId: demoProjectId,
+              assigneeMemberId: assignee.id,
+              dueDate: demo.dueDate,
+              status: demo.status,
+              priority: demo.priority,
+              completedAt: demo.completedAt,
+              plannedStartDate: demo.plannedStartDate,
+            });
+          }
         }
-      }
-    });
+      });
+    }
 
     // Seed demo project member assignments for all demo assignees
     demoAssignees.forEach((assignee) => {
@@ -271,6 +455,7 @@ function seedDefaultProjects(): void {
       }
     });
   }
+  enforceSeedTaskLimit();
 
   projectsSeeded = true;
 }

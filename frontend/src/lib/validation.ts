@@ -6,7 +6,7 @@ export const memberFormSchema = z.object({
   fullName: z.string().min(2, "Full name toi thieu 2 ky tu"),
   email: z.string().email("Email khong hop le"),
   role: z.enum(["admin", "pm", "lead", "member"]),
-  team: z.string().min(1, "Team khong duoc de trong"),
+  team: z.string().min(1, "Team is required"),
   status: z.enum(["active", "inactive"]),
 });
 

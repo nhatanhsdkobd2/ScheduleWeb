@@ -86,7 +86,7 @@ async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
     response = await fetch(url, init);
   } catch {
     throw new Error(
-      `Khong the ket noi backend tai ${API_BASE}. Local: chay backend (cong 4000). Production: kiem tra NEXT_PUBLIC_API_BASE_URL tren Vercel va Redeploy; tren Render dat ALLOWED_ORIGIN dung URL trang web.`,
+      `Cannot connect to backend at ${API_BASE}. Local: start backend on port 4000. Production: verify NEXT_PUBLIC_API_BASE_URL on Vercel and redeploy; on Render set ALLOWED_ORIGIN to your site URL.`,
     );
   }
 

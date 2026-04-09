@@ -56,6 +56,9 @@ const explicitOrigin =
 const corsOrigin = explicitOrigin ?? true;
 
 const app = express();
+// Ensure in-memory default seed data is ready before first request.
+// This prevents race conditions when frontend requests /tasks before /members or /projects.
+getProjectsWithSeed();
 // Trust proxy so express-rate-limit can read X-Forwarded-For header
 app.set("trust proxy", 1);
 app.use(
