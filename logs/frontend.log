@@ -24,3 +24,362 @@
  GET /login 200 in 122ms (next.js: 66ms, proxy.ts: 26ms, application-code: 30ms)
  GET / 200 in 83ms (next.js: 7ms, application-code: 77ms)
  GET / 200 in 37ms (next.js: 5ms, application-code: 32ms)
+✓ Compiled in 461ms
+ GET / 200 in 295ms (next.js: 76ms, application-code: 219ms)
+ GET / 200 in 175ms (next.js: 7ms, application-code: 168ms)
+ GET / 200 in 119ms (next.js: 6ms, application-code: 112ms)
+ GET / 200 in 119ms (next.js: 43ms, application-code: 76ms)
+ GET / 200 in 119ms (next.js: 79ms, application-code: 40ms)
+✓ Compiled in 193ms
+✓ Compiled in 260ms
+⨯ ./src/components/dashboard-client.tsx:127:10
+the name `isTaskOverdue` is defined multiple times
+  [90m125 |[0m }
+  [90m126 |[0m
+[31m[1m>[0m [90m127 |[0m [36mfunction[0m isTaskOverdue(task: [33mTask[0m, today: [33mDate[0m): boolean {
+  [90m    |[0m          [31m[1m^^^^^^^^^^^^^[0m
+  [90m128 |[0m   [36mconst[0m dueIso = normalizeIsoDate(task.dueDate);
+  [90m129 |[0m   [36mif[0m (!dueIso) [36mreturn[0m [36mfalse[0m;
+  [90m130 |[0m   [36mconst[0m startIso = normalizeIsoDate(task.plannedStartDate);
+
+Ecmascript file had an error
+
+Import trace:
+  Server Component:
+    ./src/components/dashboard-client.tsx
+    ./src/app/page.tsx
+
+
+
+./src/components/dashboard-client.tsx:99:10
+the name `toDayStart` is defined multiple times
+  [90m 97 |[0m }
+  [90m 98 |[0m
+[31m[1m>[0m [90m 99 |[0m [36mfunction[0m toDayStart(value: string | [36mundefined[0m): [33mDate[0m | [36mnull[0m {
+  [90m    |[0m          [31m[1m^^^^^^^^^^[0m
+  [90m100 |[0m   [36mif[0m (!value) [36mreturn[0m [36mnull[0m;
+  [90m101 |[0m   [36mconst[0m d = [36mnew[0m [33mDate[0m(value);
+  [90m102 |[0m   [36mif[0m (isNaN(d.getTime())) [36mreturn[0m [36mnull[0m;
+
+Ecmascript file had an error
+
+Import trace:
+  Server Component:
+    ./src/components/dashboard-client.tsx
+    ./src/app/page.tsx
+
+
+ GET / 500 in 1620ms (next.js: 1390ms, application-code: 231ms)
+⨯ ./src/components/dashboard-client.tsx:127:10
+the name `isTaskOverdue` is defined multiple times
+  [90m125 |[0m }
+  [90m126 |[0m
+[31m[1m>[0m [90m127 |[0m [36mfunction[0m isTaskOverdue(task: [33mTask[0m, today: [33mDate[0m): boolean {
+  [90m    |[0m          [31m[1m^^^^^^^^^^^^^[0m
+  [90m128 |[0m   [36mconst[0m dueIso = normalizeIsoDate(task.dueDate);
+  [90m129 |[0m   [36mif[0m (!dueIso) [36mreturn[0m [36mfalse[0m;
+  [90m130 |[0m   [36mconst[0m startIso = normalizeIsoDate(task.plannedStartDate);
+
+Ecmascript file had an error
+
+Import trace:
+  Server Component:
+    ./src/components/dashboard-client.tsx
+    ./src/app/page.tsx
+
+
+
+./src/components/dashboard-client.tsx:99:10
+the name `toDayStart` is defined multiple times
+  [90m 97 |[0m }
+  [90m 98 |[0m
+[31m[1m>[0m [90m 99 |[0m [36mfunction[0m toDayStart(value: string | [36mundefined[0m): [33mDate[0m | [36mnull[0m {
+  [90m    |[0m          [31m[1m^^^^^^^^^^[0m
+  [90m100 |[0m   [36mif[0m (!value) [36mreturn[0m [36mnull[0m;
+  [90m101 |[0m   [36mconst[0m d = [36mnew[0m [33mDate[0m(value);
+  [90m102 |[0m   [36mif[0m (isNaN(d.getTime())) [36mreturn[0m [36mnull[0m;
+
+Ecmascript file had an error
+
+Import trace:
+  Server Component:
+    ./src/components/dashboard-client.tsx
+    ./src/app/page.tsx
+
+
+ GET / 500 in 31ms (next.js: 13ms, application-code: 18ms)
+⨯ ./src/components/dashboard-client.tsx:127:10
+the name `isTaskOverdue` is defined multiple times
+  [90m125 |[0m }
+  [90m126 |[0m
+[31m[1m>[0m [90m127 |[0m [36mfunction[0m isTaskOverdue(task: [33mTask[0m, today: [33mDate[0m): boolean {
+  [90m    |[0m          [31m[1m^^^^^^^^^^^^^[0m
+  [90m128 |[0m   [36mconst[0m dueIso = normalizeIsoDate(task.dueDate);
+  [90m129 |[0m   [36mif[0m (!dueIso) [36mreturn[0m [36mfalse[0m;
+  [90m130 |[0m   [36mconst[0m startIso = normalizeIsoDate(task.plannedStartDate);
+
+Ecmascript file had an error
+
+Import trace:
+  Server Component:
+    ./src/components/dashboard-client.tsx
+    ./src/app/page.tsx
+
+
+
+./src/components/dashboard-client.tsx:99:10
+the name `toDayStart` is defined multiple times
+  [90m 97 |[0m }
+  [90m 98 |[0m
+[31m[1m>[0m [90m 99 |[0m [36mfunction[0m toDayStart(value: string | [36mundefined[0m): [33mDate[0m | [36mnull[0m {
+  [90m    |[0m          [31m[1m^^^^^^^^^^[0m
+  [90m100 |[0m   [36mif[0m (!value) [36mreturn[0m [36mnull[0m;
+  [90m101 |[0m   [36mconst[0m d = [36mnew[0m [33mDate[0m(value);
+  [90m102 |[0m   [36mif[0m (isNaN(d.getTime())) [36mreturn[0m [36mnull[0m;
+
+Ecmascript file had an error
+
+Import trace:
+  Server Component:
+    ./src/components/dashboard-client.tsx
+    ./src/app/page.tsx
+
+
+⨯ ./src/components/dashboard-client.tsx:127:10
+the name `isTaskOverdue` is defined multiple times
+  [90m125 |[0m }
+  [90m126 |[0m
+[31m[1m>[0m [90m127 |[0m [36mfunction[0m isTaskOverdue(task: [33mTask[0m, today: [33mDate[0m): boolean {
+  [90m    |[0m          [31m[1m^^^^^^^^^^^^^[0m
+  [90m128 |[0m   [36mconst[0m dueIso = normalizeIsoDate(task.dueDate);
+  [90m129 |[0m   [36mif[0m (!dueIso) [36mreturn[0m [36mfalse[0m;
+  [90m130 |[0m   [36mconst[0m startIso = normalizeIsoDate(task.plannedStartDate);
+
+Ecmascript file had an error
+
+Import trace:
+  Server Component:
+    ./src/components/dashboard-client.tsx
+    ./src/app/page.tsx
+
+
+
+./src/components/dashboard-client.tsx:99:10
+the name `toDayStart` is defined multiple times
+  [90m 97 |[0m }
+  [90m 98 |[0m
+[31m[1m>[0m [90m 99 |[0m [36mfunction[0m toDayStart(value: string | [36mundefined[0m): [33mDate[0m | [36mnull[0m {
+  [90m    |[0m          [31m[1m^^^^^^^^^^[0m
+  [90m100 |[0m   [36mif[0m (!value) [36mreturn[0m [36mnull[0m;
+  [90m101 |[0m   [36mconst[0m d = [36mnew[0m [33mDate[0m(value);
+  [90m102 |[0m   [36mif[0m (isNaN(d.getTime())) [36mreturn[0m [36mnull[0m;
+
+Ecmascript file had an error
+
+Import trace:
+  Server Component:
+    ./src/components/dashboard-client.tsx
+    ./src/app/page.tsx
+
+
+ GET / 500 in 37ms (next.js: 18ms, application-code: 19ms)
+ GET / 500 in 50ms (next.js: 31ms, application-code: 19ms)
+[browser] Uncaught Error: ./src/components/dashboard-client.tsx:127:10
+the name `isTaskOverdue` is defined multiple times
+  125 | }
+  126 |
+> 127 | function isTaskOverdue(task: Task, today: Date): boolean {
+      |          ^^^^^^^^^^^^^
+  128 |   const dueIso = normalizeIsoDate(task.dueDate);
+  129 |   if (!dueIso) return false;
+  130 |   const startIso = normalizeIsoDate(task.plannedStartDate);
+
+Ecmascript file had an error
+
+Import trace:
+  Server Component:
+    ./src/components/dashboard-client.tsx
+    ./src/app/page.tsx
+
+
+    at <unknown> (Error: ./src/components/dashboard-client.tsx:127:10)
+    at <unknown> (Error: (./src/components/dashboard-client.tsx:127:10)
+ GET / 200 in 887ms (next.js: 84ms, application-code: 803ms)
+✓ Compiled in 135ms
+✓ Compiled in 90ms
+✓ Compiled in 82ms
+✓ Compiled in 108ms
+✓ Compiled in 604ms
+⨯ ./src/components/dashboard-client.tsx:945:9
+the name `taskColumns` is defined multiple times
+  [90m943 |[0m   ];
+  [90m944 |[0m
+[31m[1m>[0m [90m945 |[0m   [36mconst[0m taskColumns: [33mColumnDef[0m<[33mTaskTableRow[0m>[] = [
+  [90m    |[0m         [31m[1m^^^^^^^^^^^[0m
+  [90m946 |[0m     [90m// Project Name — read-only lookup[0m
+  [90m947 |[0m     {
+  [90m948 |[0m       id: [32m"projectName"[0m,
+
+Ecmascript file had an error
+
+Import trace:
+  Server Component:
+    ./src/components/dashboard-client.tsx
+    ./src/app/page.tsx
+
+
+ GET / 500 in 75ms (next.js: 56ms, application-code: 19ms)
+⨯ ./src/components/dashboard-client.tsx:945:9
+the name `taskColumns` is defined multiple times
+  [90m943 |[0m   ];
+  [90m944 |[0m
+[31m[1m>[0m [90m945 |[0m   [36mconst[0m taskColumns: [33mColumnDef[0m<[33mTaskTableRow[0m>[] = [
+  [90m    |[0m         [31m[1m^^^^^^^^^^^[0m
+  [90m946 |[0m     [90m// Project Name — read-only lookup[0m
+  [90m947 |[0m     {
+  [90m948 |[0m       id: [32m"projectName"[0m,
+
+Ecmascript file had an error
+
+Import trace:
+  Server Component:
+    ./src/components/dashboard-client.tsx
+    ./src/app/page.tsx
+
+
+ GET / 500 in 39ms (next.js: 15ms, application-code: 25ms)
+⨯ ./src/components/dashboard-client.tsx:945:9
+the name `taskColumns` is defined multiple times
+  [90m943 |[0m   ];
+  [90m944 |[0m
+[31m[1m>[0m [90m945 |[0m   [36mconst[0m taskColumns: [33mColumnDef[0m<[33mTaskTableRow[0m>[] = [
+  [90m    |[0m         [31m[1m^^^^^^^^^^^[0m
+  [90m946 |[0m     [90m// Project Name — read-only lookup[0m
+  [90m947 |[0m     {
+  [90m948 |[0m       id: [32m"projectName"[0m,
+
+Ecmascript file had an error
+
+Import trace:
+  Server Component:
+    ./src/components/dashboard-client.tsx
+    ./src/app/page.tsx
+
+
+⨯ ./src/components/dashboard-client.tsx:945:9
+the name `taskColumns` is defined multiple times
+  [90m943 |[0m   ];
+  [90m944 |[0m
+[31m[1m>[0m [90m945 |[0m   [36mconst[0m taskColumns: [33mColumnDef[0m<[33mTaskTableRow[0m>[] = [
+  [90m    |[0m         [31m[1m^^^^^^^^^^^[0m
+  [90m946 |[0m     [90m// Project Name — read-only lookup[0m
+  [90m947 |[0m     {
+  [90m948 |[0m       id: [32m"projectName"[0m,
+
+Ecmascript file had an error
+
+Import trace:
+  Server Component:
+    ./src/components/dashboard-client.tsx
+    ./src/app/page.tsx
+
+
+ GET / 500 in 35ms (next.js: 18ms, application-code: 17ms)
+ GET / 500 in 49ms (next.js: 26ms, application-code: 23ms)
+[browser] Uncaught Error: ./src/components/dashboard-client.tsx:945:9
+the name `taskColumns` is defined multiple times
+  943 |   ];
+  944 |
+> 945 |   const taskColumns: ColumnDef<TaskTableRow>[] = [
+      |         ^^^^^^^^^^^
+  946 |     // Project Name — read-only lookup
+  947 |     {
+  948 |       id: "projectName",
+
+Ecmascript file had an error
+
+Import trace:
+  Server Component:
+    ./src/components/dashboard-client.tsx
+    ./src/app/page.tsx
+
+
+    at <unknown> (Error: ./src/components/dashboard-client.tsx:945:9)
+    at <unknown> (Error: (./src/components/dashboard-client.tsx:945:9)
+[browser] ./src/components/dashboard-client.tsx:945:9
+the name `taskColumns` is defined multiple times
+  943 |   ];
+  944 |
+> 945 |   const taskColumns: ColumnDef<TaskTableRow>[] = [
+      |         ^^^^^^^^^^^
+  946 |     // Project Name — read-only lookup
+  947 |     {
+  948 |       id: "projectName",
+
+Ecmascript file had an error
+
+Import trace:
+  Server Component:
+    ./src/components/dashboard-client.tsx
+    ./src/app/page.tsx 
+[browser] ./src/components/dashboard-client.tsx:945:9
+the name `taskColumns` is defined multiple times
+  943 |   ];
+  944 |
+> 945 |   const taskColumns: ColumnDef<TaskTableRow>[] = [
+      |         ^^^^^^^^^^^
+  946 |     // Project Name — read-only lookup
+  947 |     {
+  948 |       id: "projectName",
+
+Ecmascript file had an error
+
+Import trace:
+  Server Component:
+    ./src/components/dashboard-client.tsx
+    ./src/app/page.tsx 
+[browser] ./src/components/dashboard-client.tsx:945:9
+the name `taskColumns` is defined multiple times
+  943 |   ];
+  944 |
+> 945 |   const taskColumns: ColumnDef<TaskTableRow>[] = [
+      |         ^^^^^^^^^^^
+  946 |     // Project Name — read-only lookup
+  947 |     {
+  948 |       id: "projectName",
+
+Ecmascript file had an error
+
+Import trace:
+  Server Component:
+    ./src/components/dashboard-client.tsx
+    ./src/app/page.tsx 
+ GET / 200 in 837ms (next.js: 118ms, application-code: 719ms)
+[browser] Uncaught TypeError: Cannot read properties of undefined (reading 'canMutateTasks')
+    at cell (src/components/task-table/task-table-columns.tsx:39:28)
+    at <unknown> (src/components/data-table.tsx:40:30)
+    at Array.map (<anonymous>)
+    at <unknown> (src/components/data-table.tsx:38:38)
+    at Array.map (<anonymous>)
+    at DataTable (src/components/data-table.tsx:36:37)
+    at DashboardClient (src/components/dashboard-client.tsx:1289:17)
+    at Home (src\app\page.tsx:4:10)
+  37 |               taskId={row.original.id}
+  38 |               currentTitle={row.original.title}
+> 39 |               canMutate={m.canMutateTasks}
+     |                            ^
+  40 |               onCommit={m.commitTaskTitle}
+  41 |             />
+  42 |           </Box>
+✓ Compiled in 216ms
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ GET / 200 in 686ms (next.js: 80ms, application-code: 606ms)
+✓ Compiled in 88ms
+✓ Compiled in 48ms
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ GET / 200 in 777ms (next.js: 117ms, application-code: 660ms)
+✓ Compiled in 26ms
+ GET / 200 in 610ms (next.js: 60ms, application-code: 550ms)
+ GET / 200 in 81ms (next.js: 3ms, application-code: 77ms)
+ GET / 200 in 66ms (next.js: 4ms, application-code: 63ms)
+ GET / 200 in 64ms (next.js: 3ms, application-code: 61ms)

@@ -24,11 +24,9 @@ import {
   Tooltip as MuiTooltip,
   Typography,
 } from "@mui/material";
-import { memo, useMemo, useState, useEffect, useCallback, useRef, type ReactNode } from "react";
+import { useMemo, useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
-import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
-import { PickerDay, type PickerDayProps } from "@mui/x-date-pickers/PickerDay";
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Member, Project, Task } from "@shared/types/domain";
@@ -50,35 +48,22 @@ import { memberFormSchema, parseFormErrors, taskFormSchema, type FormErrors } fr
 import FilterBar from "@/components/filter-bar";
 import ProjectSelect from "@/components/project-select";
 import DataTable from "@/components/data-table";
+import TaskDataTable from "@/components/task-table/task-data-table";
+import { createTaskColumns } from "@/components/task-table/task-table-columns";
+import type { ActiveTaskCellState, TaskTableMeta } from "@/components/task-table/task-table-meta";
+import type { TaskTableRow } from "@/components/task-table/task-table-types";
+import {
+  formatDate,
+  isTaskOverdue,
+  isWeekendDate,
+  priorityLabel,
+  toDayStart,
+} from "@/components/task-table/task-table-utils";
 import type { ColumnDef } from "@tanstack/react-table";
 import { format } from "date-fns";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { isAppAdminEmail } from "@/lib/app-admin";
-
-/** Map priority -> display label */
-function priorityLabel(priority: Task["priority"]): string {
-  if (priority === "critical") return "Critical";
-  if (priority === "high") return "High";
-  if (priority === "medium") return "Normal";
-  return "Low";
-}
-
-/** Format date as "Mon-DD-YYYY", e.g. "Apr-04-2026" — locale-fixed for SSR/CSR consistency */
-function formatDate(dateStr: string): string {
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return "—";
-  const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  const m = MONTHS[d.getMonth()];
-  const day = String(d.getDate()).padStart(2, "0");
-  const y = d.getFullYear();
-  return `${m}-${day}-${y}`;
-}
-
-function isWeekend(date: Date): boolean {
-  const day = date.getDay();
-  return day === 0 || day === 6;
-}
 
 function countBusinessDaysInclusive(startDateStr: string, endDateStr: string): number {
   const start = new Date(startDateStr);
@@ -100,75 +85,11 @@ function countBusinessDaysInclusive(startDateStr: string, endDateStr: string): n
   return count;
 }
 
-function toDateOrNull(value: string | undefined): Date | null {
-  if (!value) return null;
-  const d = new Date(value);
-  return isNaN(d.getTime()) ? null : d;
-}
-
-function toIsoDate(value: Date | null): string | undefined {
-  if (!value) return undefined;
-  return format(value, "yyyy-MM-dd");
-}
-
-function toDayStart(value: string | undefined): Date | null {
-  if (!value) return null;
-  const d = new Date(value);
-  if (isNaN(d.getTime())) return null;
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-}
-
-function normalizeIsoDate(value: string | undefined): string | null {
-  if (!value) return null;
-  const d = new Date(value);
-  if (isNaN(d.getTime())) return null;
-  return d.toISOString().slice(0, 10);
-}
-
-function toTodayIsoLocal(today: Date): string {
-  const y = today.getFullYear();
-  const m = String(today.getMonth() + 1).padStart(2, "0");
-  const d = String(today.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
 function getMonthDays(anchor: Date): Date[] {
   const year = anchor.getFullYear();
   const month = anchor.getMonth();
   const dayCount = new Date(year, month + 1, 0).getDate();
   return Array.from({ length: dayCount }, (_, i) => new Date(year, month, i + 1));
-}
-
-function isTaskOverdue(task: Task, today: Date): boolean {
-  const dueIso = normalizeIsoDate(task.dueDate);
-  if (!dueIso) return false;
-  const startIso = normalizeIsoDate(task.plannedStartDate);
-  const hasInvalidRange = Boolean(startIso && dueIso < startIso);
-  if (hasInvalidRange) return true;
-
-  const progress = task.completedAt ? 100 : (task.progress ?? 0);
-  if (progress >= 100) return false;
-
-  const todayIso = toTodayIsoLocal(today);
-  return dueIso < todayIso;
-}
-
-function WeekendDay(props: PickerDayProps) {
-  const dayOfWeek = props.day.getDay(); // 0: Sunday, 6: Saturday
-  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-  return (
-    <PickerDay
-      {...props}
-      sx={{
-        ...(isWeekend
-          ? {
-              color: "error.light",
-              backgroundColor: props.selected ? "rgba(244, 67, 54, 0.25)" : "rgba(244, 67, 54, 0.08)",
-            }
-          : {}),
-      }}
-    />
-  );
 }
 
 function KpiStatCard({
@@ -314,7 +235,7 @@ async function exportTasksToXLSX(rows: TaskTableRow[], timelineDays: Date[]): Pr
     const timelineCells = timelineDays.map((d) => {
       const dayMs = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
       const inRange = start && end && dayMs >= rangeStart && dayMs <= rangeEnd;
-      return inRange && !isWeekend(d);
+      return inRange && !isWeekendDate(d);
     });
 
     const rowValues = [
@@ -372,183 +293,6 @@ async function exportTasksToXLSX(rows: TaskTableRow[], timelineDays: Date[]): Pr
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
 }
-
-/** Enriched row type for the task table */
-interface TaskTableRow {
-  id: string;
-  taskCode: string;
-  title: string;
-  projectName: string;
-  assigneeName: string;
-  startDate: string;
-  days: number;
-  completeDate: string;
-  priority: string;
-  progress: number;
-  raw: Task;
-}
-
-const ProgressEditor = memo(function ProgressEditor({
-  taskId,
-  currentProgress,
-  canMutate,
-  isOverdue,
-  isDone,
-  onCommit,
-}: {
-  taskId: string;
-  currentProgress: number;
-  canMutate: boolean;
-  isOverdue: boolean;
-  isDone: boolean;
-  onCommit: (taskId: string, value: number, currentProgress: number) => void;
-}) {
-  const [draft, setDraft] = useState<string>(String(currentProgress));
-  const fillPercent = Math.min(100, Math.max(0, Number.isFinite(Number(draft)) ? Number(draft) : currentProgress));
-
-  return (
-    <Box
-      sx={{
-        position: "relative",
-        width: 120,
-        height: 28,
-        borderRadius: 1,
-        overflow: "hidden",
-        border: "1px solid",
-        borderColor: "grey.300",
-        bgcolor: "grey.100",
-        "&::before": {
-          content: '""',
-          position: "absolute",
-          left: 0,
-          top: 0,
-          bottom: 0,
-          width: `${fillPercent}%`,
-          bgcolor: isOverdue ? "rgba(255, 152, 152, 0.45)" : isDone ? "rgba(129, 199, 132, 0.65)" : "rgba(129, 199, 132, 0.55)",
-          transition: "width 120ms ease",
-        },
-      }}
-    >
-      <TextField
-        size="small"
-        variant="standard"
-        value={`${draft}%`}
-        disabled={!canMutate}
-        InputProps={{ disableUnderline: true }}
-        inputProps={{ style: { textAlign: "center", padding: "3px 6px", fontWeight: 600, fontSize: "0.92rem", color: "#000" } }}
-        sx={{
-          position: "absolute",
-          inset: 0,
-          zIndex: 1,
-          "& .MuiInputBase-root": { height: "100%" },
-          "& input": { color: "#000 !important" },
-        }}
-        onChange={(e) => {
-          const digits = e.target.value.replace(/[^0-9]/g, "");
-          if (!digits) {
-            setDraft("0");
-            return;
-          }
-          const normalized = String(Math.min(100, Math.max(0, Number(digits))));
-          setDraft(normalized);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            const parsed = Number(draft);
-            const clamped = Math.min(100, Math.max(0, Number.isFinite(parsed) ? parsed : currentProgress));
-            onCommit(taskId, clamped, currentProgress);
-          }
-          if (e.key === "Escape") {
-            e.preventDefault();
-            setDraft(String(currentProgress));
-          }
-        }}
-      />
-    </Box>
-  );
-});
-
-const TaskDescriptionEditor = memo(function TaskDescriptionEditor({
-  taskId,
-  currentTitle,
-  canMutate,
-  onCommit,
-}: {
-  taskId: string;
-  currentTitle: string;
-  canMutate: boolean;
-  onCommit: (taskId: string, value: string, currentTitle: string) => void;
-}) {
-  const [draft, setDraft] = useState<string>(currentTitle);
-
-  return (
-    <TextField
-      size="small"
-      variant="standard"
-      fullWidth
-      value={draft}
-      disabled={!canMutate}
-      InputProps={{ disableUnderline: true }}
-      onChange={(e) => setDraft(e.target.value)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          onCommit(taskId, draft, currentTitle);
-        }
-        if (e.key === "Escape") {
-          e.preventDefault();
-          setDraft(currentTitle);
-        }
-      }}
-      sx={{
-        "& input": { py: 0.5, whiteSpace: "normal", overflow: "visible" },
-      }}
-    />
-  );
-});
-
-const InlineDateEditor = memo(function InlineDateEditor({
-  value,
-  canMutate,
-  onChange,
-  onClose,
-}: {
-  value: string;
-  canMutate: boolean;
-  onChange: (next: string) => void;
-  onClose?: () => void;
-}) {
-  return (
-    <DatePicker
-      value={toDateOrNull(value)}
-      onChange={(next) => {
-        const normalized = toIsoDate(next);
-        if (normalized) onChange(normalized);
-        onClose?.();
-      }}
-      disabled={!canMutate}
-      slots={{ day: WeekendDay }}
-      format="MM/dd/yyyy"
-      slotProps={{
-        textField: {
-          size: "small",
-          variant: "standard",
-          sx: {
-            width: 150,
-            "& .MuiInput-underline:before": { borderBottom: "0 !important" },
-            "& .MuiInput-underline:hover:not(.Mui-disabled):before": { borderBottom: "0 !important" },
-            "& .MuiInput-underline:after": { borderBottom: "0 !important" },
-            "& .MuiInputBase-root:before": { borderBottom: "0 !important" },
-            "& .MuiInputBase-root:hover:not(.Mui-disabled):before": { borderBottom: "0 !important" },
-            "& .MuiInputBase-root:after": { borderBottom: "0 !important" },
-            "& input": { py: 0.5, width: 98 },
-          },
-        },
-      }}
-    />
-  );
-});
 
 function headerUserDisplayName(u: { displayName: string | null; email: string | null }): string {
   if (u.displayName?.trim()) return u.displayName.trim();
@@ -639,11 +383,12 @@ export default function DashboardClient() {
   const [projectDialogOpen, setProjectDialogOpen] = useState(false);
   const [editProject, setEditProject] = useState<Project | null>(null);
   const [projectErrors, setProjectErrors] = useState<FormErrors>({});
-  const [activeTaskCell, setActiveTaskCell] = useState<{ taskId: string; field: "assignee" | "start" | "complete" | "priority" } | null>(null);
+  const [activeTaskCell, setActiveTaskCell] = useState<ActiveTaskCellState>(null);
   const [taskRowsVisible, setTaskRowsVisible] = useState(50);
   const [isTaskListLoadingMore, setIsTaskListLoadingMore] = useState(false);
   const taskListLoadMoreRef = useRef<HTMLDivElement | null>(null);
   const taskListLoadTimerRef = useRef<number | null>(null);
+  const [taskRowObjectCache] = useState(() => new Map<string, TaskTableRow & { _builtWithMounted?: boolean }>());
   const [projectForm, setProjectForm] = useState<{
     name: string;
     description: string;
@@ -813,6 +558,12 @@ export default function DashboardClient() {
     },
     [canMutateTasks, updateTaskMutation],
   );
+  const updateTaskMutate = useCallback(
+    (args: { id: string; payload: Partial<Omit<Task, "id">> }) => {
+      updateTaskMutation.mutate(args);
+    },
+    [updateTaskMutation],
+  );
 
   /** Default IDs for new task creation */
   const defaultProjectId = useMemo(
@@ -852,38 +603,85 @@ export default function DashboardClient() {
     });
   }, [tasks, members, selectedTeam, selectedProjectId, selectedMemberId, dateFrom, dateTo]);
 
-  /** Derived rows for Task table */
+  /** Derived rows for Task table — reuse row objects when underlying Task ref + labels unchanged so memoized rows skip re-render. */
   const taskTableRows = useMemo<TaskTableRow[]>(() => {
-    return filteredTasks.map((task) => {
+    const cache = taskRowObjectCache;
+    const out: TaskTableRow[] = [];
+    const seen = new Set<string>();
+    for (const task of filteredTasks) {
+      seen.add(task.id);
       const project = projectById.get(task.projectId);
       const member = memberById.get(task.assigneeMemberId);
-      // Use plannedStartDate if set; if not, use today only after mount (avoids hydration mismatch)
-      // During SSR / before mount, fallback to empty string → format shows "Invalid Date" but harmless
+      const projectName = project?.name ?? "—";
+      const assigneeName = member?.fullName ?? "—";
+      const prev = cache.get(task.id);
+      if (
+        prev &&
+        prev.raw === task &&
+        prev._builtWithMounted === mounted &&
+        prev.projectName === projectName &&
+        prev.assigneeName === assigneeName
+      ) {
+        out.push(prev);
+        continue;
+      }
       const startDateStr = task.plannedStartDate ?? (mounted ? new Date().toISOString().slice(0, 10) : "");
       const days = mounted && startDateStr ? countBusinessDaysInclusive(startDateStr, task.dueDate) : 0;
-      // Progress: completedAt => 100, otherwise stored progress or 0
       const progress = task.completedAt ? 100 : (task.progress ?? 0);
-      return {
+      const next: TaskTableRow & { _builtWithMounted?: boolean } = {
         id: task.id,
         taskCode: task.taskCode,
         title: task.title,
-        projectName: project?.name ?? "—",
-        assigneeName: member?.fullName ?? "—",
+        projectName,
+        assigneeName,
         startDate: mounted ? formatDate(startDateStr || task.dueDate) : formatDate(task.dueDate),
         days,
         completeDate: formatDate(task.dueDate),
         priority: priorityLabel(task.priority),
         progress,
         raw: task,
+        _builtWithMounted: mounted,
       };
-    });
-  }, [filteredTasks, projectById, memberById, mounted]);
+      cache.set(task.id, next);
+      out.push(next);
+    }
+    for (const id of [...cache.keys()]) {
+      if (!seen.has(id)) cache.delete(id);
+    }
+    return out;
+  }, [filteredTasks, projectById, memberById, mounted, taskRowObjectCache]);
 
   const timelineMonthDays = useMemo(() => {
     // Tasks timeline always follows the current month.
     if (!mounted) return [];
     return getMonthDays(new Date());
   }, [mounted]);
+
+  const taskColumns = useMemo(() => createTaskColumns(timelineMonthDays), [timelineMonthDays]);
+
+  const taskTableMeta = useMemo<TaskTableMeta>(
+    () => ({
+      activeTaskCell,
+      mounted,
+      canMutateTasks,
+      members,
+      timelineMonthDays,
+      setActiveTaskCell,
+      updateTaskMutate,
+      commitProgress,
+      commitTaskTitle,
+    }),
+    [
+      activeTaskCell,
+      mounted,
+      canMutateTasks,
+      members,
+      timelineMonthDays,
+      updateTaskMutate,
+      commitProgress,
+      commitTaskTitle,
+    ],
+  );
 
   const summary = useMemo(() => {
     const today = mounted ? new Date() : null;
@@ -1141,353 +939,6 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL (e.g. https
           )}
         </Box>
       ),
-    },
-  ];
-
-  const taskColumns: ColumnDef<TaskTableRow>[] = [
-    // Project Name — read-only lookup
-    {
-      id: "projectName",
-      header: "Project Name",
-      cell: ({ row }) => (
-        <Typography variant="body2" sx={{ minWidth: 120 }}>
-          {row.original.projectName}
-        </Typography>
-      ),
-    },
-    // Task Description — inline text, editable, full display
-    {
-      id: "title",
-      header: "Task Description",
-      accessorKey: "title",
-      cell: ({ row }) => (
-        <Box sx={{ flexGrow: 1, minWidth: 420 }}>
-          <TaskDescriptionEditor
-            key={`${row.original.id}-${row.original.title}`}
-            taskId={row.original.id}
-            currentTitle={row.original.title}
-            canMutate={canMutateTasks}
-            onCommit={commitTaskTitle}
-          />
-        </Box>
-      ),
-    },
-    // Assigned to — inline Select
-    {
-      id: "assigneeName",
-      header: () => (
-        <Box sx={{ minWidth: 170, whiteSpace: "nowrap" }}>
-          Assigned to
-        </Box>
-      ),
-      cell: ({ row }) => {
-        const isEditing = activeTaskCell?.taskId === row.original.id && activeTaskCell.field === "assignee";
-        if (!isEditing) {
-          return (
-            <Typography
-              variant="body2"
-              sx={{ cursor: canMutateTasks ? "pointer" : "default", minWidth: 170, whiteSpace: "nowrap" }}
-              onClick={() => {
-                if (canMutateTasks) setActiveTaskCell({ taskId: row.original.id, field: "assignee" });
-              }}
-            >
-              {row.original.assigneeName}
-            </Typography>
-          );
-        }
-        return (
-          <TextField
-            select
-            size="small"
-            variant="standard"
-            fullWidth
-            value={row.original.raw.assigneeMemberId}
-            disabled={!canMutateTasks}
-            InputProps={{ disableUnderline: true }}
-            onChange={(e) => {
-              updateTaskMutation.mutate({ id: row.original.id, payload: { assigneeMemberId: e.target.value } });
-              setActiveTaskCell(null);
-            }}
-            onBlur={() => setActiveTaskCell(null)}
-            autoFocus
-            sx={{ minWidth: 170, "& .MuiSelect-select": { py: 0.5, whiteSpace: "nowrap" } }}
-          >
-            {members.map((m) => (
-              <MenuItem key={m.id} value={m.id}>
-                {m.fullName}
-              </MenuItem>
-            ))}
-          </TextField>
-        );
-      },
-    },
-    // Start Day — inline editable date
-    {
-      id: "startDate",
-      header: () => (
-        <Box sx={{ minWidth: 120, whiteSpace: "nowrap" }}>
-          Start Day
-        </Box>
-      ),
-      cell: ({ row }) => {
-        const isEditing = activeTaskCell?.taskId === row.original.id && activeTaskCell.field === "start";
-        if (!isEditing) {
-          return (
-            <Typography
-              variant="body2"
-              sx={{ cursor: canMutateTasks ? "pointer" : "default", minWidth: 120, whiteSpace: "nowrap" }}
-              onClick={() => {
-                if (canMutateTasks) setActiveTaskCell({ taskId: row.original.id, field: "start" });
-              }}
-            >
-              {row.original.startDate}
-            </Typography>
-          );
-        }
-        return (
-          <InlineDateEditor
-            value={row.original.raw.plannedStartDate ?? new Date().toISOString().slice(0, 10)}
-            canMutate={canMutateTasks}
-            onChange={(next) =>
-              updateTaskMutation.mutate({ id: row.original.id, payload: { plannedStartDate: next } })
-            }
-            onClose={() => setActiveTaskCell(null)}
-          />
-        );
-      },
-    },
-    // Days — read-only derived
-    {
-      id: "days",
-      header: () => (
-        <Box sx={{ minWidth: 70, whiteSpace: "nowrap" }}>
-          Days
-        </Box>
-      ),
-      cell: ({ row }) => (
-        <Typography variant="body2" color="text.secondary" sx={{ minWidth: 70, whiteSpace: "nowrap" }}>
-          {row.original.days}
-        </Typography>
-      ),
-    },
-    // Complete — inline date
-    {
-      id: "completeDate",
-      header: () => (
-        <Box sx={{ minWidth: 130, whiteSpace: "nowrap" }}>
-          Complete
-        </Box>
-      ),
-      cell: ({ row }) => {
-        const isEditing = activeTaskCell?.taskId === row.original.id && activeTaskCell.field === "complete";
-        if (!isEditing) {
-          return (
-            <Typography
-              variant="body2"
-              sx={{ cursor: canMutateTasks ? "pointer" : "default", minWidth: 130, whiteSpace: "nowrap" }}
-              onClick={() => {
-                if (canMutateTasks) setActiveTaskCell({ taskId: row.original.id, field: "complete" });
-              }}
-            >
-              {row.original.completeDate}
-            </Typography>
-          );
-        }
-        return (
-          <InlineDateEditor
-            value={row.original.raw.dueDate}
-            canMutate={canMutateTasks}
-            onChange={(next) =>
-              updateTaskMutation.mutate({ id: row.original.id, payload: { dueDate: next } })
-            }
-            onClose={() => setActiveTaskCell(null)}
-          />
-        );
-      },
-    },
-    // Priority — inline Select
-    {
-      id: "priority",
-      header: () => (
-        <Box sx={{ minWidth: 110, whiteSpace: "nowrap" }}>
-          Priority
-        </Box>
-      ),
-      cell: ({ row }) => {
-        const isEditing = activeTaskCell?.taskId === row.original.id && activeTaskCell.field === "priority";
-        if (!isEditing) {
-          return (
-            <Typography
-              variant="body2"
-              sx={{ cursor: canMutateTasks ? "pointer" : "default", minWidth: 110, whiteSpace: "nowrap" }}
-              onClick={() => {
-                if (canMutateTasks) setActiveTaskCell({ taskId: row.original.id, field: "priority" });
-              }}
-            >
-              {row.original.priority}
-            </Typography>
-          );
-        }
-        return (
-          <TextField
-            select
-            size="small"
-            variant="standard"
-            fullWidth
-            value={row.original.raw.priority}
-            disabled={!canMutateTasks}
-            InputProps={{ disableUnderline: true }}
-            onChange={(e) => {
-              updateTaskMutation.mutate({
-                id: row.original.id,
-                payload: { priority: e.target.value as Task["priority"] },
-              });
-              setActiveTaskCell(null);
-            }}
-            onBlur={() => setActiveTaskCell(null)}
-            autoFocus
-            sx={{ minWidth: 110, "& .MuiSelect-select": { py: 0.5, whiteSpace: "nowrap" } }}
-          >
-            <MenuItem value="low">Low</MenuItem>
-            <MenuItem value="medium">Normal</MenuItem>
-            <MenuItem value="high">High</MenuItem>
-            <MenuItem value="critical">Critical</MenuItem>
-          </TextField>
-        );
-      },
-    },
-    // Progress — single editable progress box
-    {
-      id: "progress",
-      header: "Progress",
-      cell: ({ row }) => {
-        const progress = row.original.progress;
-        const dueDate = new Date(row.original.raw.dueDate);
-        // Avoid hydration mismatch: compute overdue only after mount
-        if (!mounted) {
-          return (
-            <Box sx={{ minWidth: 120 }}>
-              <ProgressEditor
-                key={`${row.original.id}-${progress}`}
-                taskId={row.original.id}
-                currentProgress={progress}
-                canMutate={canMutateTasks}
-                isOverdue={false}
-                isDone={progress === 100}
-                onCommit={commitProgress}
-              />
-            </Box>
-          );
-        }
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const isOverdue = isTaskOverdue(row.original.raw, today);
-        const daysOverdue = isOverdue
-          ? Math.ceil((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24))
-          : 0;
-        const tooltipTitle =
-          progress === 100
-            ? "Done"
-            : isOverdue
-              ? `Overdue ${daysOverdue}d`
-              : "On track";
-
-        return (
-          <Box sx={{ minWidth: 120 }}>
-            <MuiTooltip title={tooltipTitle} arrow>
-              <Box>
-                <ProgressEditor
-                  key={`${row.original.id}-${progress}`}
-                  taskId={row.original.id}
-                  currentProgress={progress}
-                  canMutate={canMutateTasks}
-                  isOverdue={isOverdue}
-                  isDone={progress === 100}
-                  onCommit={commitProgress}
-                />
-              </Box>
-            </MuiTooltip>
-          </Box>
-        );
-      },
-    },
-    // Timeline — mini gantt per row (at end)
-    {
-      id: "timeline",
-      header: () => (
-        <Box sx={{ minWidth: 360 }}>
-          <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 700 }}>
-            {timelineMonthDays[0] ? format(timelineMonthDays[0], "MMM yyyy") : "Timeline"}
-          </Typography>
-          <Box sx={{ display: "grid", gridTemplateColumns: `repeat(${timelineMonthDays.length}, 11px)`, gap: 0.25, mt: 0.5 }}>
-            {timelineMonthDays.map((d) => {
-              const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-              return (
-                <Box
-                  key={`h-${d.toISOString().slice(0, 10)}`}
-                  sx={{
-                    width: 11,
-                    height: 11,
-                    borderRadius: 0.5,
-                    border: "1px solid",
-                    borderColor: "grey.300",
-                    bgcolor: isWeekend ? "rgba(244,67,54,0.08)" : "white",
-                    fontSize: 8,
-                    lineHeight: "11px",
-                    textAlign: "center",
-                    color: isWeekend ? "error.light" : "text.secondary",
-                  }}
-                >
-                  {d.getDate()}
-                </Box>
-              );
-            })}
-          </Box>
-        </Box>
-      ),
-      cell: ({ row }) => {
-        const start = toDayStart(row.original.raw.plannedStartDate ?? row.original.raw.dueDate);
-        const end = toDayStart(row.original.raw.dueDate);
-        if (!start || !end || timelineMonthDays.length === 0) {
-          return (
-            <Typography variant="body2" color="text.disabled">
-              —
-            </Typography>
-          );
-        }
-
-        const startMs = start.getTime();
-        const endMs = end.getTime();
-        const rangeStart = Math.min(startMs, endMs);
-        const rangeEnd = Math.max(startMs, endMs);
-        const invalidRange = endMs < startMs;
-
-        return (
-          <Box sx={{ minWidth: 360, py: 0.5 }}>
-            <Box sx={{ display: "grid", gridTemplateColumns: `repeat(${timelineMonthDays.length}, 11px)`, gap: 0.25 }}>
-              {timelineMonthDays.map((d) => {
-                const dayTs = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-                const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-                const inRange = dayTs >= rangeStart && dayTs <= rangeEnd;
-                const filled = inRange && !isWeekend;
-                return (
-                  <Box
-                    key={`${row.original.id}-${d.toISOString().slice(0, 10)}`}
-                    sx={{
-                      width: 11,
-                      height: 11,
-                      borderRadius: 0.5,
-                      border: "1px solid",
-                      borderColor: "grey.300",
-                      bgcolor: filled ? (invalidRange ? "error.light" : "rgba(66, 133, 244, 0.82)") : "transparent",
-                    }}
-                  />
-                );
-              })}
-            </Box>
-          </Box>
-        );
-      },
     },
   ];
 
@@ -1835,7 +1286,12 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL (e.g. https
                     ) : null}
                   </Stack>
                 </Stack>
-                <DataTable columns={taskColumns} data={visibleTaskRows} minTableWidth={1500} />
+                <TaskDataTable
+                  columns={taskColumns}
+                  data={visibleTaskRows}
+                  minTableWidth={1500}
+                  tableMeta={taskTableMeta}
+                />
                 <Typography variant="body2" color="text.secondary">
                   Showing {visibleTaskRows.length}/{totalTasksCount} tasks
                 </Typography>
