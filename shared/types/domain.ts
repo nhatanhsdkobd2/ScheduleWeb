@@ -38,6 +38,8 @@ export interface Task {
   taskCode: string;
   title: string;
   projectId: string;
+  /** Denormalized from DB join; use when present so rows still show a name if the project is soft-deleted and omitted from /projects. */
+  projectName?: string;
   assigneeMemberId: string;
   dueDate: string;
   completedAt?: string;

@@ -15,6 +15,8 @@ export interface TaskTableMeta {
   updateTaskMutate: (args: { id: string; payload: Partial<Omit<Task, "id">> }) => void;
   commitProgress: (taskId: string, value: number, currentProgress: number) => void;
   commitTaskTitle: (taskId: string, value: string, currentTitle: string) => void;
+  /** True when this row should play the remote-update highlight (2s). */
+  isTaskRowFlashing: (taskId: string) => boolean;
 }
 
 export function getRowEditingField(

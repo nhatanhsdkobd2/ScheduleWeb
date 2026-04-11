@@ -28,7 +28,8 @@ import { useMemo, useState, useEffect, useCallback, useRef, type ReactNode } fro
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { io } from "socket.io-client";
 import type { Member, Project, Task } from "@shared/types/domain";
 import {
   createTask,
@@ -39,6 +40,7 @@ import {
   getMembers,
   getProjects,
   getTasksByFilters,
+  type TaskFilters,
   publicApiBaseUrl,
   updateProject,
   updateTask,
@@ -64,6 +66,28 @@ import { format } from "date-fns";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { isAppAdminEmail } from "@/lib/app-admin";
+
+function filtersFromTasksQueryKey(key: readonly unknown[]): TaskFilters {
+  if (key[0] !== "tasks") return {};
+  if (key[1] === "all" && key.length === 2) return {};
+  return {
+    projectId: key[1] === "all" ? undefined : String(key[1]),
+    memberId: key[2] === "all" ? undefined : String(key[2]),
+    dateFrom: typeof key[3] === "string" && key[3] ? key[3] : undefined,
+    dateTo: typeof key[4] === "string" && key[4] ? key[4] : undefined,
+  };
+}
+
+function mergeTasksPreserveEditingRow(
+  prev: Task[] | undefined,
+  server: Task[],
+  protectedTaskId: string | null,
+): Task[] {
+  if (!protectedTaskId) return server;
+  const keep = prev?.find((t) => t.id === protectedTaskId);
+  if (!keep) return server;
+  return server.map((t) => (t.id === protectedTaskId ? keep : t));
+}
 
 function countBusinessDaysInclusive(startDateStr: string, endDateStr: string): number {
   const start = new Date(startDateStr);
@@ -374,6 +398,8 @@ export default function DashboardClient() {
   const [memberFormInputKey, setMemberFormInputKey] = useState(0);
   const projectNameInputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
   const [projectFormInputKey, setProjectFormInputKey] = useState(0);
+  const [memberSearch, setMemberSearch] = useState("");
+  const [projectSearch, setProjectSearch] = useState("");
   const [selectedProjectId, setSelectedProjectId] = useState("all");
   const [selectedMemberId, setSelectedMemberId] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
@@ -384,6 +410,18 @@ export default function DashboardClient() {
   const [editProject, setEditProject] = useState<Project | null>(null);
   const [projectErrors, setProjectErrors] = useState<FormErrors>({});
   const [activeTaskCell, setActiveTaskCell] = useState<ActiveTaskCellState>(null);
+  const localTaskMutationAt = useRef<Map<string, number>>(new Map());
+  const editTaskRef = useRef<Task | null>(null);
+  const taskDrawerOpenRef = useRef(false);
+  const activeTaskCellRef = useRef<ActiveTaskCellState>(null);
+  const pendingSocketRef = useRef({
+    members: false,
+    projects: false,
+    refreshTasks: false,
+    taskFlashIds: new Set<string>(),
+  });
+  const socketDebounceTimerRef = useRef<number | null>(null);
+  const [remoteFlashTaskIds, setRemoteFlashTaskIds] = useState(() => new Set<string>());
   const [taskRowsVisible, setTaskRowsVisible] = useState(50);
   const [isTaskListLoadingMore, setIsTaskListLoadingMore] = useState(false);
   const taskListLoadMoreRef = useRef<HTMLDivElement | null>(null);
@@ -421,8 +459,22 @@ export default function DashboardClient() {
     plannedStartDate: "",
   });
 
-  const membersQuery = useQuery<Member[]>({ queryKey: ["members"], queryFn: getMembers });
-  const projectsQuery = useQuery<Project[]>({ queryKey: ["projects"], queryFn: getProjects });
+  editTaskRef.current = editTask;
+  taskDrawerOpenRef.current = taskDrawerOpen;
+  activeTaskCellRef.current = activeTaskCell;
+
+  const membersQuery = useQuery<Member[]>({
+    queryKey: ["members"],
+    queryFn: getMembers,
+    placeholderData: keepPreviousData,
+    refetchOnWindowFocus: false,
+  });
+  const projectsQuery = useQuery<Project[]>({
+    queryKey: ["projects"],
+    queryFn: getProjects,
+    placeholderData: keepPreviousData,
+    refetchOnWindowFocus: false,
+  });
   const tasksQueryKey = useMemo(
     () => ["tasks", selectedProjectId, selectedMemberId, dateFrom, dateTo] as const,
     [selectedProjectId, selectedMemberId, dateFrom, dateTo],
@@ -436,22 +488,128 @@ export default function DashboardClient() {
         dateFrom: dateFrom || undefined,
         dateTo: dateTo || undefined,
       }),
+    placeholderData: keepPreviousData,
+    refetchOnWindowFocus: false,
   });
   /** Single unfiltered list for total count + shared cache; same payload as previous `tasks-total-count` query */
   const tasksAllQuery = useQuery<Task[]>({
     queryKey: ["tasks", "all"],
     queryFn: () => getTasksByFilters({}),
+    placeholderData: keepPreviousData,
+    refetchOnWindowFocus: false,
   });
+
+  const flashRemoteTaskRows = useCallback((ids: string[]) => {
+    const now = Date.now();
+    const add: string[] = [];
+    for (const id of ids) {
+      if (now - (localTaskMutationAt.current.get(id) ?? 0) < 1300) continue;
+      add.push(id);
+    }
+    if (add.length === 0) return;
+    setRemoteFlashTaskIds((prev) => {
+      const next = new Set(prev);
+      for (const id of add) next.add(id);
+      return next;
+    });
+    for (const id of add) {
+      window.setTimeout(() => {
+        setRemoteFlashTaskIds((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+      }, 2000);
+    }
+  }, []);
+
+  useEffect(() => {
+    const socket = io(publicApiBaseUrl, { path: "/socket.io", transports: ["websocket", "polling"] });
+    const mergePayload = (payload: { type: string; taskIds?: string[] }) => {
+      const p = pendingSocketRef.current;
+      if (payload.type === "members") p.members = true;
+      if (payload.type === "projects") p.projects = true;
+      if (payload.type === "tasks") {
+        p.refreshTasks = true;
+        for (const id of payload.taskIds ?? []) p.taskFlashIds.add(id);
+      }
+    };
+    const flush = async () => {
+      const p = pendingSocketRef.current;
+      pendingSocketRef.current = {
+        members: false,
+        projects: false,
+        refreshTasks: false,
+        taskFlashIds: new Set(),
+      };
+      const flashIds = [...p.taskFlashIds];
+      if (flashIds.length > 0) flashRemoteTaskRows(flashIds);
+
+      if (p.members) {
+        try {
+          queryClient.setQueryData(["members"], await getMembers());
+        } catch {
+          /* keep cache */
+        }
+      }
+      if (p.projects) {
+        try {
+          queryClient.setQueryData(["projects"], await getProjects());
+        } catch {
+          /* keep cache */
+        }
+      }
+      if (!p.refreshTasks) return;
+
+      const protectedTaskId =
+        taskDrawerOpenRef.current && editTaskRef.current
+          ? editTaskRef.current.id
+          : activeTaskCellRef.current?.taskId ?? null;
+
+      const queries = queryClient.getQueryCache().findAll({ queryKey: ["tasks"], exact: false });
+      await Promise.all(
+        queries.map(async (q) => {
+          const key = q.queryKey;
+          const filters = filtersFromTasksQueryKey(key);
+          const prev = queryClient.getQueryData<Task[]>(key);
+          try {
+            const server = await getTasksByFilters(filters);
+            queryClient.setQueryData(key, mergeTasksPreserveEditingRow(prev, server, protectedTaskId));
+          } catch {
+            /* keep cache */
+          }
+        }),
+      );
+    };
+    const onEntityUpdated = (payload: { type: string; taskIds?: string[] }) => {
+      mergePayload(payload);
+      if (socketDebounceTimerRef.current !== null) window.clearTimeout(socketDebounceTimerRef.current);
+      socketDebounceTimerRef.current = window.setTimeout(() => {
+        socketDebounceTimerRef.current = null;
+        void flush();
+      }, 300);
+    };
+    socket.on("entity:updated", onEntityUpdated);
+    return () => {
+      socket.off("entity:updated", onEntityUpdated);
+      if (socketDebounceTimerRef.current !== null) window.clearTimeout(socketDebounceTimerRef.current);
+      socket.disconnect();
+    };
+  }, [queryClient, flashRemoteTaskRows]);
+
+  const isTaskRowFlashing = useCallback((taskId: string) => remoteFlashTaskIds.has(taskId), [remoteFlashTaskIds]);
 
   const canMutateTasks = Boolean(user);
   const canMutateMembersProjects = Boolean(user) && isAppAdminEmail(user?.email);
 
-  const patchTaskInCurrentQuery = useCallback((taskId: string, patch: Partial<Task>) => {
-    queryClient.setQueryData<Task[]>(tasksQueryKey, (prev) => {
+  /** Patch one task in every cached task list (filtered + `["tasks","all"]`) so Dashboard KPIs and Tasks tab stay in sync. */
+  const patchTaskInAllTaskQueries = useCallback((taskId: string, patch: Partial<Task>) => {
+    queryClient.setQueriesData<Task[]>({ queryKey: ["tasks"] }, (prev) => {
       if (!prev) return prev;
+      if (!prev.some((t) => t.id === taskId)) return prev;
       return prev.map((item) => (item.id === taskId ? { ...item, ...patch } : item));
     });
-  }, [queryClient, tasksQueryKey]);
+  }, [queryClient]);
 
   const createMemberMutation = useMutation({
     mutationFn: createMember,
@@ -475,25 +633,31 @@ export default function DashboardClient() {
   });
   const createTaskMutation = useMutation({
     mutationFn: (payload: Omit<Task, "id" | "status" | "taskCode">) => createTask(payload),
-    onSuccess: () => {
+    onSuccess: (task) => {
+      localTaskMutationAt.current.set(task.id, Date.now());
       setTaskDrawerOpen(false);
       void queryClient.invalidateQueries({ queryKey: ["tasks"] });
     },
   });
   const updateTaskMutation = useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: Partial<Omit<Task, "id">> }) => updateTask(id, payload),
-    onMutate: ({ id, payload }) => {
-      const snapshot = queryClient.getQueryData<Task[]>(tasksQueryKey);
-      patchTaskInCurrentQuery(id, payload as Partial<Task>);
-      return { snapshot };
+    onMutate: async ({ id, payload }) => {
+      await queryClient.cancelQueries({ queryKey: ["tasks"] });
+      const previousEntries = queryClient.getQueriesData<Task[]>({ queryKey: ["tasks"] });
+      patchTaskInAllTaskQueries(id, payload as Partial<Task>);
+      return { previousEntries };
     },
     onError: (_error, _variables, context) => {
-      if (!context?.snapshot) return;
-      queryClient.setQueryData(tasksQueryKey, context.snapshot);
+      const entries = context?.previousEntries;
+      if (!entries) return;
+      for (const [key, data] of entries) {
+        queryClient.setQueryData(key, data);
+      }
     },
     onSuccess: (updatedTask) => {
       if (updatedTask?.id) {
-        patchTaskInCurrentQuery(updatedTask.id, updatedTask);
+        localTaskMutationAt.current.set(updatedTask.id, Date.now());
+        patchTaskInAllTaskQueries(updatedTask.id, updatedTask);
       }
       // Only close drawer when editing an existing task (not inline cell edits)
       if (editTask !== null) {
@@ -543,8 +707,10 @@ export default function DashboardClient() {
   const commitProgress = useCallback(
     (taskId: string, value: number, currentProgress: number) => {
       if (!canMutateTasks) return;
-      if (value !== currentProgress) {
-        updateTaskMutation.mutate({ id: taskId, payload: { progress: value } });
+      const next = Math.min(100, Math.max(0, Math.round(value)));
+      const prev = Math.min(100, Math.max(0, Math.round(currentProgress)));
+      if (next !== prev) {
+        updateTaskMutation.mutate({ id: taskId, payload: { progress: next } });
       }
     },
     [canMutateTasks, updateTaskMutation],
@@ -576,11 +742,29 @@ export default function DashboardClient() {
   );
 
   const filteredMembers = useMemo(() => {
+    const q = memberSearch.trim().toLowerCase();
     return members
       .filter((item) => (selectedTeam === "all" ? true : item.team === selectedTeam))
       .filter((item) => (selectedMemberId === "all" ? true : item.id === selectedMemberId))
+      .filter((item) => {
+        if (!q) return true;
+        return item.fullName.toLowerCase().includes(q) || item.email.toLowerCase().includes(q);
+      })
       .sort((a, b) => a.fullName.localeCompare(b.fullName));
-  }, [members, selectedTeam, selectedMemberId]);
+  }, [members, selectedTeam, selectedMemberId, memberSearch]);
+
+  const filteredProjects = useMemo(() => {
+    const q = projectSearch.trim().toLowerCase();
+    return projects.filter((p) => {
+      if (!q) return true;
+      return (
+        p.name.toLowerCase().includes(q) ||
+        p.projectCode.toLowerCase().includes(q) ||
+        (p.category?.toLowerCase().includes(q) ?? false) ||
+        (p.description?.toLowerCase().includes(q) ?? false)
+      );
+    });
+  }, [projects, projectSearch]);
   const filteredTasks = useMemo(() => {
     // Build set of member IDs that match current team filter
     const teamMemberIds =
@@ -603,6 +787,26 @@ export default function DashboardClient() {
     });
   }, [tasks, members, selectedTeam, selectedProjectId, selectedMemberId, dateFrom, dateTo]);
 
+  /**
+   * Dashboard KPI cards (Open / Overdue) must follow only filters shown on the Dashboard tab
+   * (team + due date range), not project/member filters from the Tasks tab — otherwise counts
+   * stay at 0 when those Task filters exclude everything.
+   */
+  const tasksForDashboardKpis = useMemo(() => {
+    const list = tasksAllQuery.data ?? [];
+    const teamMemberIds =
+      selectedTeam === "all"
+        ? null
+        : new Set(members.filter((m) => m.team === selectedTeam).map((m) => m.id));
+
+    return list.filter((item) => {
+      if (teamMemberIds && !teamMemberIds.has(item.assigneeMemberId)) return false;
+      if (dateFrom && item.dueDate < dateFrom) return false;
+      if (dateTo && item.dueDate > dateTo) return false;
+      return true;
+    });
+  }, [tasksAllQuery.data, members, selectedTeam, dateFrom, dateTo]);
+
   /** Derived rows for Task table — reuse row objects when underlying Task ref + labels unchanged so memoized rows skip re-render. */
   const taskTableRows = useMemo<TaskTableRow[]>(() => {
     const cache = taskRowObjectCache;
@@ -612,7 +816,7 @@ export default function DashboardClient() {
       seen.add(task.id);
       const project = projectById.get(task.projectId);
       const member = memberById.get(task.assigneeMemberId);
-      const projectName = project?.name ?? "—";
+      const projectName = task.projectName?.trim() || project?.name?.trim() || "—";
       const assigneeName = member?.fullName ?? "—";
       const prev = cache.get(task.id);
       if (
@@ -670,6 +874,7 @@ export default function DashboardClient() {
       updateTaskMutate,
       commitProgress,
       commitTaskTitle,
+      isTaskRowFlashing,
     }),
     [
       activeTaskCell,
@@ -680,13 +885,14 @@ export default function DashboardClient() {
       updateTaskMutate,
       commitProgress,
       commitTaskTitle,
+      isTaskRowFlashing,
     ],
   );
 
   const summary = useMemo(() => {
     const today = mounted ? new Date() : null;
-    const openTasks = filteredTasks.filter((task) => !(task.completedAt || task.progress === 100));
-    const overdueTasks = today ? filteredTasks.filter((task) => isTaskOverdue(task, today)).length : 0;
+    const openTasks = tasksForDashboardKpis.filter((task) => !(task.completedAt || task.progress === 100));
+    const overdueTasks = today ? tasksForDashboardKpis.filter((task) => isTaskOverdue(task, today)).length : 0;
     const activeProjects =
       selectedProjectId === "all"
         ? projects.filter((project) => project.status === "active").length
@@ -697,7 +903,7 @@ export default function DashboardClient() {
       openTasks: openTasks.length,
       overdueTasks,
     };
-  }, [filteredMembers, filteredTasks, projects, selectedProjectId, mounted]);
+  }, [filteredMembers, tasksForDashboardKpis, projects, selectedProjectId, mounted]);
 
   const delayTrendData = useMemo(() => {
     const monthMap = new Map<string, { delayedTasks: number; totalDelay: number; count: number }>();
@@ -839,7 +1045,6 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL (e.g. https
     { accessorKey: "fullName", header: "Name" },
     { accessorKey: "email", header: "Email" },
     { accessorKey: "team", header: "Team" },
-    { accessorKey: "role", header: "Role" },
     {
       id: "actions",
       header: () => (
@@ -944,30 +1149,13 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL (e.g. https
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
-    <Box sx={{ display: "flex", minHeight: "100vh" }}>
-      <Drawer variant="permanent" sx={{ width: 220, "& .MuiDrawer-paper": { width: 220, p: 2 } }}>
-        <Typography variant="h6" fontWeight={700} sx={{ mb: 2 }}>
-          {"Software team's work schedule"}
-        </Typography>
-        <Tabs
-          orientation="vertical"
-          value={activeTab}
-          onChange={(_, value) => setActiveTab(value)}
-          sx={{ alignItems: "flex-start" }}
-        >
-          <Tab label="Dashboard" />
-          <Tab label="Members" />
-          <Tab label="Projects" />
-          <Tab label="Tasks" />
-        </Tabs>
-      </Drawer>
-
-      <Box sx={{ flex: 1 }}>
+    <Box sx={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+      <Box sx={{ flex: 1, minWidth: 0 }}>
         <AppBar position="static" color="inherit" elevation={0}>
           <Toolbar className="border-b border-slate-200/80 bg-white/95 backdrop-blur" sx={{ justifyContent: "space-between" }}>
             <Box>
               <Typography fontWeight={800} className="text-slate-900">
-                Execution phase
+                {"Software team's work schedule"}
               </Typography>
               <Typography variant="caption" className="text-slate-500">
                 Project operations overview
@@ -975,8 +1163,37 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL (e.g. https
             </Box>
             <AppHeaderAuth />
           </Toolbar>
+          <Box
+            sx={{
+              borderBottom: 1,
+              borderColor: "divider",
+              px: { xs: 1, sm: 2 },
+              bgcolor: "background.paper",
+            }}
+          >
+            <Tabs
+              value={activeTab}
+              onChange={(_, value) => setActiveTab(value)}
+              variant="scrollable"
+              scrollButtons="auto"
+              allowScrollButtonsMobile
+              aria-label="Main sections"
+            >
+              <Tab label="Dashboard" id="main-tab-0" />
+              <Tab label="Members" id="main-tab-1" />
+              <Tab label="Projects" id="main-tab-2" />
+              <Tab label="Tasks" id="main-tab-3" />
+            </Tabs>
+          </Box>
         </AppBar>
-        <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 3 } }} className="bg-slate-50/60">
+        <Container
+          maxWidth={false}
+          sx={{ py: 4, px: { xs: 2, md: 3 } }}
+          className="bg-slate-50/60"
+          id={`nav-panel-${activeTab}`}
+          role="tabpanel"
+          aria-labelledby={`main-tab-${activeTab}`}
+        >
           <Stack spacing={3.5}>
             {/* Filter — Dashboard tab: Due from / Due to only */}
             {activeTab === 0 && (
@@ -1056,7 +1273,25 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL (e.g. https
               <Box className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-300 hover:shadow-md">
                 <Stack spacing={2.5}>
                   <FilterBar selectedTeam={selectedTeam} setSelectedTeam={setSelectedTeam} />
-                  <Stack direction={{ xs: "column", md: "row" }} spacing={2.5}>
+                  <Stack direction={{ xs: "column", md: "row" }} spacing={2.5} flexWrap="wrap" useFlexGap>
+                    <TextField
+                      label="Search name or email"
+                      size="small"
+                      value={memberSearch}
+                      onChange={(e) => setMemberSearch(e.target.value)}
+                      placeholder="Type to filter…"
+                      sx={{
+                        minWidth: { xs: "100%", md: 260 },
+                        flex: { md: "1 1 260px" },
+                        "& .MuiOutlinedInput-root": {
+                          borderRadius: "12px",
+                          backgroundColor: "#fff",
+                          transition: "all 300ms",
+                        },
+                        "& fieldset": { borderColor: "#e5e7eb" },
+                        "& .MuiOutlinedInput-root:hover fieldset": { borderColor: "#cbd5e1" },
+                      }}
+                    />
                     <TextField
                       select
                       label="Member"
@@ -1082,6 +1317,30 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL (e.g. https
                       ))}
                     </TextField>
                   </Stack>
+                </Stack>
+              </Box>
+            )}
+            {activeTab === 2 && (
+              <Box className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-300 hover:shadow-md">
+                <Stack direction={{ xs: "column", md: "row" }} spacing={2.5} flexWrap="wrap" useFlexGap>
+                  <TextField
+                    label="Search project"
+                    size="small"
+                    value={projectSearch}
+                    onChange={(e) => setProjectSearch(e.target.value)}
+                    placeholder="Name, code, category…"
+                    sx={{
+                      minWidth: { xs: "100%", md: 280 },
+                      flex: { md: "1 1 280px" },
+                      "& .MuiOutlinedInput-root": {
+                        borderRadius: "12px",
+                        backgroundColor: "#fff",
+                        transition: "all 300ms",
+                      },
+                      "& fieldset": { borderColor: "#e5e7eb" },
+                      "& .MuiOutlinedInput-root:hover fieldset": { borderColor: "#cbd5e1" },
+                    }}
+                  />
                 </Stack>
               </Box>
             )}
@@ -1239,8 +1498,12 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL (e.g. https
                     </Button>
                   ) : null}
                 </Stack>
-                <DataTable columns={projectColumns} data={projects} />
-                {projects.length === 0 ? <Alert severity="info">No matching projects found.</Alert> : null}
+                <DataTable columns={projectColumns} data={filteredProjects} />
+                {projects.length === 0 ? (
+                  <Alert severity="info">No projects loaded.</Alert>
+                ) : filteredProjects.length === 0 ? (
+                  <Alert severity="info">No projects match the current filters.</Alert>
+                ) : null}
               </>
             ) : null}
 

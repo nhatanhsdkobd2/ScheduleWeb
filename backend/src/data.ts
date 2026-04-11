@@ -13,6 +13,31 @@ import type {
   WeeklyReportRow,
 } from "../../shared/types/domain.js";
 import { existsSync, readFileSync } from "node:fs";
+import { getPool, isPersistenceEnabled } from "./db/index.js";
+import {
+  insertTaskIntoDb,
+  listTasksFromDb,
+  persistTasksFromMemory,
+  selectAllTasksForAnalyticsFromDb,
+  selectTaskByIdFromDb,
+  updateTaskInDb,
+  type TaskListFilters,
+} from "./db/task-store.js";
+import {
+  hydrateMembersFromDb,
+  hydrateProjectsFromDb,
+  insertMemberReturning,
+  insertProjectReturning,
+  listMembersFromDb,
+  listProjectsFromDb,
+  patchMemberInDb,
+  patchProjectInDb,
+  persistAllMembersProjects,
+  selectMemberByIdFromDb,
+  selectProjectByIdFromDb,
+} from "./db/member-project-store.js";
+
+export type { TaskListFilters } from "./db/task-store.js";
 
 export const members: Member[] = [];
 export const projects: Project[] = [];
@@ -471,7 +496,56 @@ export function getProjectsWithSeed(): Project[] {
   return projects.filter((project) => !project.deletedAt);
 }
 
-export function softDeleteProject(id: string): Project | undefined {
+/** Danh sách members cho API: SQL khi bật DB, mảng khi không. */
+export async function getMembersForRead(): Promise<Member[]> {
+  if (isPersistenceEnabled()) {
+    return listMembersFromDb();
+  }
+  seedDefaultMembers();
+  return members.filter((member) => !member.deletedAt);
+}
+
+/** Danh sách projects cho API: SQL khi bật DB, mảng khi không. */
+export async function getProjectsForRead(): Promise<Project[]> {
+  if (isPersistenceEnabled()) {
+    return listProjectsFromDb();
+  }
+  seedDefaultProjects();
+  return projects.filter((project) => !project.deletedAt);
+}
+
+export async function loadOrInitializePersistence(): Promise<void> {
+  if (!isPersistenceEnabled()) {
+    getProjectsWithSeed();
+    return;
+  }
+  const pool = getPool();
+  await hydrateMembersFromDb(pool, members);
+  await hydrateProjectsFromDb(pool, projects);
+  if (members.length === 0 || projects.length === 0) {
+    getProjectsWithSeed();
+    await persistAllMembersProjects(pool, members, projects);
+    await persistTasksFromMemory([...tasks]);
+    tasks.splice(0, tasks.length);
+  }
+  members.splice(0, members.length);
+  projects.splice(0, projects.length);
+  membersSeeded = true;
+  projectsSeeded = true;
+}
+
+export async function softDeleteProject(id: string): Promise<Project | undefined> {
+  if (isPersistenceEnabled()) {
+    const deleted = await patchProjectInDb(id, { deletedAt: nowIso() });
+    if (!deleted) return undefined;
+    addAuditLog({
+      action: "project.delete",
+      entityType: "project",
+      entityId: deleted.id,
+      metadata: { projectCode: deleted.projectCode },
+    });
+    return deleted;
+  }
   const project = projects.find((p) => p.id === id && !p.deletedAt);
   if (!project) return undefined;
   project.deletedAt = nowIso();
@@ -536,20 +610,47 @@ export function addTaskHistory(entry: Omit<TaskHistoryItem, "id" | "changedAt">)
   return item;
 }
 
-export function findMemberById(id: string): Member | undefined {
+function findMemberByIdInMemory(id: string): Member | undefined {
   return members.find((member) => member.id === id && !member.deletedAt);
 }
 
-export function findProjectById(id: string): Project | undefined {
+function findProjectByIdInMemory(id: string): Project | undefined {
   return projects.find((project) => project.id === id && !project.deletedAt);
 }
 
-export function findTaskById(id: string): Task | undefined {
+export async function findMemberById(id: string): Promise<Member | undefined> {
+  if (isPersistenceEnabled()) {
+    return selectMemberByIdFromDb(id);
+  }
+  return findMemberByIdInMemory(id);
+}
+
+export async function findProjectById(id: string): Promise<Project | undefined> {
+  if (isPersistenceEnabled()) {
+    return selectProjectByIdFromDb(id);
+  }
+  return findProjectByIdInMemory(id);
+}
+
+export async function findTaskById(id: string): Promise<Task | undefined> {
+  if (isPersistenceEnabled()) {
+    return selectTaskByIdFromDb(id);
+  }
   return tasks.find((task) => task.id === id && !task.deletedAt);
 }
 
-export function createMember(input: Omit<Member, "id">): Member {
+export async function createMember(input: Omit<Member, "id">): Promise<Member> {
   const member: Member = { id: createId("m"), ...input };
+  if (isPersistenceEnabled()) {
+    const saved = await insertMemberReturning(getPool(), member);
+    addAuditLog({
+      action: "member.create",
+      entityType: "member",
+      entityId: saved.id,
+      metadata: { memberCode: saved.memberCode, email: saved.email },
+    });
+    return saved;
+  }
   members.push(member);
   addAuditLog({
     action: "member.create",
@@ -560,8 +661,19 @@ export function createMember(input: Omit<Member, "id">): Member {
   return member;
 }
 
-export function updateMember(id: string, patch: Partial<Omit<Member, "id">>): Member | undefined {
-  const member = findMemberById(id);
+export async function updateMember(id: string, patch: Partial<Omit<Member, "id">>): Promise<Member | undefined> {
+  if (isPersistenceEnabled()) {
+    const updated = await patchMemberInDb(id, patch);
+    if (!updated) return undefined;
+    addAuditLog({
+      action: "member.update",
+      entityType: "member",
+      entityId: updated.id,
+      metadata: { keys: Object.keys(patch).join(",") },
+    });
+    return updated;
+  }
+  const member = findMemberByIdInMemory(id);
   if (!member) return undefined;
   Object.assign(member, patch);
   addAuditLog({
@@ -573,8 +685,19 @@ export function updateMember(id: string, patch: Partial<Omit<Member, "id">>): Me
   return member;
 }
 
-export function softDeleteMember(id: string): Member | undefined {
-  const member = findMemberById(id);
+export async function softDeleteMember(id: string): Promise<Member | undefined> {
+  if (isPersistenceEnabled()) {
+    const deleted = await patchMemberInDb(id, { deletedAt: nowIso(), status: "inactive" });
+    if (!deleted) return undefined;
+    addAuditLog({
+      action: "member.delete",
+      entityType: "member",
+      entityId: deleted.id,
+      metadata: {},
+    });
+    return deleted;
+  }
+  const member = findMemberByIdInMemory(id);
   if (!member) return undefined;
   member.deletedAt = nowIso();
   member.status = "inactive";
@@ -587,8 +710,18 @@ export function softDeleteMember(id: string): Member | undefined {
   return member;
 }
 
-export function createProject(input: Omit<Project, "id">): Project {
+export async function createProject(input: Omit<Project, "id">): Promise<Project> {
   const project: Project = { id: createId("p"), ...input };
+  if (isPersistenceEnabled()) {
+    const saved = await insertProjectReturning(getPool(), project);
+    addAuditLog({
+      action: "project.create",
+      entityType: "project",
+      entityId: saved.id,
+      metadata: { projectCode: saved.projectCode },
+    });
+    return saved;
+  }
   projects.push(project);
   addAuditLog({
     action: "project.create",
@@ -632,8 +765,19 @@ export function removeMemberFromProject(projectId: string, memberId: string): bo
   return true;
 }
 
-export function updateProject(id: string, patch: Partial<Omit<Project, "id">>): Project | undefined {
-  const project = findProjectById(id);
+export async function updateProject(id: string, patch: Partial<Omit<Project, "id">>): Promise<Project | undefined> {
+  if (isPersistenceEnabled()) {
+    const updated = await patchProjectInDb(id, patch);
+    if (!updated) return undefined;
+    addAuditLog({
+      action: "project.update",
+      entityType: "project",
+      entityId: updated.id,
+      metadata: { keys: Object.keys(patch).join(",") },
+    });
+    return updated;
+  }
+  const project = findProjectByIdInMemory(id);
   if (!project) return undefined;
   Object.assign(project, patch);
   addAuditLog({
@@ -645,9 +789,44 @@ export function updateProject(id: string, patch: Partial<Omit<Project, "id">>): 
   return project;
 }
 
-export function createTask(input: Omit<Task, "id" | "status">): Task {
+export async function getTasks(filters: TaskListFilters): Promise<Task[]> {
+  if (isPersistenceEnabled()) {
+    return listTasksFromDb(filters);
+  }
+  const projectId = filters.projectId;
+  const memberId = filters.memberId;
+  const status = filters.status;
+  const search = filters.search?.toLowerCase();
+  const dateFrom = filters.dateFrom;
+  const dateTo = filters.dateTo;
+  return tasks
+    .filter((item) => !item.deletedAt)
+    .filter((item) => (projectId ? item.projectId === projectId : true))
+    .filter((item) => (memberId ? item.assigneeMemberId === memberId : true))
+    .filter((item) => (status ? item.status === status : true))
+    .filter((item) => (search ? `${item.taskCode} ${item.title}`.toLowerCase().includes(search) : true))
+    .filter((item) => (dateFrom ? item.dueDate >= dateFrom : true))
+    .filter((item) => (dateTo ? item.dueDate <= dateTo : true))
+    .map((item) => {
+      const p = projects.find((pr) => pr.id === item.projectId);
+      return { ...item, projectName: p?.name };
+    });
+}
+
+async function allActiveTasks(): Promise<Task[]> {
+  if (isPersistenceEnabled()) {
+    return selectAllTasksForAnalyticsFromDb();
+  }
+  return tasks.filter((item) => !item.deletedAt);
+}
+
+export async function createTask(input: Omit<Task, "id" | "status">): Promise<Task> {
   const task: Task = { id: createId("t"), status: "todo", ...input };
-  tasks.push(task);
+  if (isPersistenceEnabled()) {
+    await insertTaskIntoDb(task);
+  } else {
+    tasks.push(task);
+  }
   addAuditLog({
     action: "task.create",
     entityType: "task",
@@ -657,8 +836,8 @@ export function createTask(input: Omit<Task, "id" | "status">): Task {
   return task;
 }
 
-export function updateTask(id: string, patch: Partial<Omit<Task, "id">>): Task | undefined {
-  const task = findTaskById(id);
+export async function updateTask(id: string, patch: Partial<Omit<Task, "id">>): Promise<Task | undefined> {
+  const task = isPersistenceEnabled() ? await selectTaskByIdFromDb(id) : tasks.find((t) => t.id === id && !t.deletedAt);
   if (!task) return undefined;
   for (const [fieldName, newValue] of Object.entries(patch)) {
     const key = fieldName as keyof Task;
@@ -671,6 +850,16 @@ export function updateTask(id: string, patch: Partial<Omit<Task, "id">>): Task |
         newValue: String(newValue),
       });
     }
+  }
+  if (isPersistenceEnabled()) {
+    const updated = await updateTaskInDb(id, patch);
+    addAuditLog({
+      action: "task.update",
+      entityType: "task",
+      entityId: task.id,
+      metadata: { keys: Object.keys(patch).join(",") },
+    });
+    return updated;
   }
   Object.assign(task, patch);
   addAuditLog({
@@ -704,11 +893,12 @@ function toBand(score: number): "A" | "B" | "C" | "D" {
   return "D";
 }
 
-export function getDashboardSummary(): DashboardSummary {
+export async function getDashboardSummary(): Promise<DashboardSummary> {
   const now = new Date();
-  const activeMembers = getMembersWithSeed();
-  const activeProjects = getProjectsWithSeed();
-  const openTasks = tasks.filter((task) => !task.deletedAt && !task.completedAt);
+  const activeMembers = await getMembersForRead();
+  const activeProjects = await getProjectsForRead();
+  const taskList = await allActiveTasks();
+  const openTasks = taskList.filter((task) => !task.completedAt);
   const overdueTasks = openTasks.filter((task) => new Date(task.dueDate) < now).length;
   return {
     activeMembers: activeMembers.filter((member) => member.status === "active").length,
@@ -718,17 +908,19 @@ export function getDashboardSummary(): DashboardSummary {
   };
 }
 
-export function getStatusDistribution(): StatusDistributionItem[] {
+export async function getStatusDistribution(): Promise<StatusDistributionItem[]> {
   const counts = new Map<Task["status"], number>();
-  for (const task of tasks.filter((item) => !item.deletedAt)) {
+  const taskList = await allActiveTasks();
+  for (const task of taskList) {
     counts.set(task.status, (counts.get(task.status) ?? 0) + 1);
   }
   return [...counts.entries()].map(([status, value]) => ({ status, value }));
 }
 
-export function getDelayTrend(): DelayTrendItem[] {
+export async function getDelayTrend(): Promise<DelayTrendItem[]> {
   const monthMap = new Map<string, { delayedTasks: number; totalDelay: number; doneCount: number }>();
-  for (const task of tasks.filter((item) => !item.deletedAt && item.completedAt)) {
+  const taskList = await allActiveTasks();
+  for (const task of taskList.filter((item) => item.completedAt)) {
     const period = task.completedAt!.slice(0, 7);
     const current = monthMap.get(period) ?? { delayedTasks: 0, totalDelay: 0, doneCount: 0 };
     const delay = toDelayDays(task);
@@ -746,10 +938,11 @@ export function getDelayTrend(): DelayTrendItem[] {
     }));
 }
 
-export function getPerformance(): PerformanceItem[] {
-  const activeMembers = getMembersWithSeed();
+export async function getPerformance(): Promise<PerformanceItem[]> {
+  const activeMembers = await getMembersForRead();
+  const taskList = await allActiveTasks();
   return activeMembers.map((member) => {
-    const ownTasks = tasks.filter((task) => !task.deletedAt && task.assigneeMemberId === member.id);
+    const ownTasks = taskList.filter((task) => task.assigneeMemberId === member.id);
     const overdueCount = ownTasks.filter((task) => task.completedAt && toDelayDays(task) > 0).length;
     const avgDelayDays =
       ownTasks.length === 0 ? 0 : ownTasks.reduce((sum, task) => sum + toDelayDays(task), 0) / ownTasks.length;
@@ -768,10 +961,11 @@ export function getPerformance(): PerformanceItem[] {
   });
 }
 
-export function getWeeklyReportRows(): WeeklyReportRow[] {
-  const activeMembers = getMembersWithSeed();
+export async function getWeeklyReportRows(): Promise<WeeklyReportRow[]> {
+  const activeMembers = await getMembersForRead();
+  const taskList = await allActiveTasks();
   return activeMembers.map((member) => {
-    const ownTasks = tasks.filter((task) => !task.deletedAt && task.assigneeMemberId === member.id);
+    const ownTasks = taskList.filter((task) => task.assigneeMemberId === member.id);
     const done = ownTasks.filter((task) => task.status === "done").length;
     const overdue = ownTasks.filter((task) => task.completedAt && toDelayDays(task) > 0).length;
     const avgDelayDays =
@@ -786,14 +980,18 @@ export function getWeeklyReportRows(): WeeklyReportRow[] {
   });
 }
 
-export function getMonthlyReportRows(): WeeklyReportRow[] {
+export async function getMonthlyReportRows(): Promise<WeeklyReportRow[]> {
   return getWeeklyReportRows();
 }
 
-export function getPerformanceByPeriod(periodType: "month" | "quarter" | "year", periodKey: string): PerformanceItem[] {
+export async function getPerformanceByPeriod(
+  periodType: "month" | "quarter" | "year",
+  periodKey: string,
+): Promise<PerformanceItem[]> {
   const start = periodType === "month" ? `${periodKey}-01` : periodType === "quarter" ? `${periodKey}-01` : `${periodKey}-01-01`;
-  const filteredTasks = tasks.filter((task) => !task.deletedAt && (!task.completedAt || task.completedAt >= start));
-  const basePerformance = getPerformance();
+  const taskList = await allActiveTasks();
+  const filteredTasks = taskList.filter((task) => !task.completedAt || task.completedAt >= start);
+  const basePerformance = await getPerformance();
   return basePerformance.map((item) => {
     const ownCount = filteredTasks.filter((task) => task.assigneeMemberId === item.memberId).length;
     return {

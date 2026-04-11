@@ -1,12 +1,17 @@
+import "./db/index.js";
 import cors from "cors";
 import express from "express";
+import { createServer } from "node:http";
 import path from "node:path";
 import { unlink } from "node:fs/promises";
 import { z } from "zod";
 import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
-import { addAuditLog, auditLogs, createMember, createProject, createReportRecord, createTask, findMemberById, findProjectById, findTaskById, getDashboardSummary, getDelayTrend, getMembersWithSeed, getMonthlyReportRows, getPerformance, getPerformanceByPeriod, getProjectsWithSeed, softDeleteProject, getStatusDistribution, getWeeklyReportRows, projectMembers, removeMemberFromProject, reportHistory, assignMemberToProject, softDeleteMember, taskHistory, tasks, updateMember, updateProject, updateReportRecord, updateTask, } from "./data.js";
+import { addAuditLog, auditLogs, createMember, createProject, createReportRecord, createTask, findMemberById, findProjectById, findTaskById, getDashboardSummary, getDelayTrend, getMembersForRead, getMonthlyReportRows, getPerformance, getPerformanceByPeriod, getProjectsForRead, getTasks, loadOrInitializePersistence, softDeleteProject, getStatusDistribution, getWeeklyReportRows, projectMembers, removeMemberFromProject, reportHistory, assignMemberToProject, softDeleteMember, taskHistory, updateMember, updateProject, updateReportRecord, updateTask, } from "./data.js";
+import { isPersistenceEnabled } from "./db/index.js";
+import { nextTaskCodeFromDb } from "./db/task-store.js";
 import { generateExcelReport, generatePdfReport } from "./report-generator.js";
+import { attachSocketIo, emitEntityUpdated } from "./realtime.js";
 const EXPORT_DIR = path.resolve(process.cwd(), "exports");
 const idempotencyCache = new Map();
 /**
@@ -21,9 +26,6 @@ const rawOrigin = process.env.ALLOWED_ORIGIN?.trim();
 const explicitOrigin = rawOrigin && rawOrigin !== "*" ? normalizeOrigin(rawOrigin) : undefined;
 const corsOrigin = explicitOrigin ?? true;
 const app = express();
-// Ensure in-memory default seed data is ready before first request.
-// This prevents race conditions when frontend requests /tasks before /members or /projects.
-getProjectsWithSeed();
 // Trust proxy so express-rate-limit can read X-Forwarded-For header
 app.set("trust proxy", 1);
 app.use(cors({
@@ -113,44 +115,48 @@ const memberCreateSchema = z.object({
     team: z.string().min(1),
     status: z.enum(["active", "inactive"]).default("active"),
 });
-app.post("/members", requireRoles(["admin", "pm", "lead"]), (req, res) => {
+app.post("/members", requireRoles(["admin", "pm", "lead"]), async (req, res) => {
     const parsed = memberCreateSchema.safeParse(req.body);
     if (!parsed.success)
         return res.status(400).json({ error: parsed.error.flatten() });
-    const duplicated = getMembersWithSeed().some((member) => member.email === parsed.data.email);
+    const memberList = await getMembersForRead();
+    const duplicated = memberList.some((member) => member.email.toLowerCase() === parsed.data.email.toLowerCase());
     if (duplicated)
         return res.status(409).json({ error: "Duplicate email" });
     // Auto-generate memberCode: MEM-NNN (max current + 1)
-    const allCodes = getMembersWithSeed().map((m) => m.memberCode).filter((c) => c.startsWith("MEM-"));
+    const allCodes = memberList.map((m) => m.memberCode).filter((c) => c.startsWith("MEM-"));
     const nums = allCodes.map((c) => parseInt(c.replace("MEM-", ""), 10)).filter((n) => !isNaN(n));
     const maxNum = nums.length > 0 ? Math.max(...nums) : 0;
     const newCode = `MEM-${String(maxNum + 1).padStart(3, "0")}`;
-    const member = createMember({ ...parsed.data, memberCode: newCode });
+    const member = await createMember({ ...parsed.data, memberCode: newCode });
+    emitEntityUpdated({ type: "members" });
     return res.status(201).json(member);
 });
-app.get("/members", (_req, res) => {
-    res.json(getMembersWithSeed());
+app.get("/members", async (_req, res) => {
+    res.json(await getMembersForRead());
 });
 const memberPatchSchema = memberCreateSchema.partial();
-app.patch("/members/:id", requireRoles(["admin", "pm", "lead"]), (req, res) => {
+app.patch("/members/:id", requireRoles(["admin", "pm", "lead"]), async (req, res) => {
     const memberId = getRequiredParam(req, "id");
     if (!memberId)
         return res.status(400).json({ error: "Invalid member id" });
     const parsed = memberPatchSchema.safeParse(req.body);
     if (!parsed.success)
         return res.status(400).json({ error: parsed.error.flatten() });
-    const updated = updateMember(memberId, parsed.data);
+    const updated = await updateMember(memberId, parsed.data);
     if (!updated)
         return res.status(404).json({ error: "Member not found" });
+    emitEntityUpdated({ type: "members" });
     return res.json(updated);
 });
-app.delete("/members/:id", requireRoles(["admin", "pm", "lead"]), (req, res) => {
+app.delete("/members/:id", requireRoles(["admin", "pm", "lead"]), async (req, res) => {
     const memberId = getRequiredParam(req, "id");
     if (!memberId)
         return res.status(400).json({ error: "Invalid member id" });
-    const deleted = softDeleteMember(memberId);
+    const deleted = await softDeleteMember(memberId);
     if (!deleted)
         return res.status(404).json({ error: "Member not found" });
+    emitEntityUpdated({ type: "members" });
     return res.json({ status: "deleted", member: deleted });
 });
 const projectCreateSchema = z.object({
@@ -158,47 +164,51 @@ const projectCreateSchema = z.object({
     ownerMemberId: z.string().optional(),
     status: z.enum(["planning", "active", "on_hold", "completed", "canceled"]).default("active"),
 });
-app.post("/projects", requireRoles(["admin", "pm", "lead"]), (req, res) => {
+app.post("/projects", requireRoles(["admin", "pm", "lead"]), async (req, res) => {
     const parsed = projectCreateSchema.safeParse(req.body);
     if (!parsed.success)
         return res.status(400).json({ error: parsed.error.flatten() });
-    if (parsed.data.ownerMemberId && !findMemberById(parsed.data.ownerMemberId)) {
+    if (parsed.data.ownerMemberId && !(await findMemberById(parsed.data.ownerMemberId))) {
         return res.status(400).json({ error: "ownerMemberId invalid" });
     }
     // Auto-generate projectCode: PROJ-NNN (max current + 1)
-    const allCodes = getProjectsWithSeed().map((p) => p.projectCode).filter((c) => c.startsWith("PROJ-"));
+    const projectList = await getProjectsForRead();
+    const allCodes = projectList.map((p) => p.projectCode).filter((c) => c.startsWith("PROJ-"));
     const nums = allCodes.map((c) => parseInt(c.replace("PROJ-", ""), 10)).filter((n) => !isNaN(n));
     const maxNum = nums.length > 0 ? Math.max(...nums) : 0;
     const newCode = `PROJ-${String(maxNum + 1).padStart(3, "0")}`;
-    const project = createProject({ ...parsed.data, projectCode: newCode });
+    const project = await createProject({ ...parsed.data, projectCode: newCode });
+    emitEntityUpdated({ type: "projects" });
     return res.status(201).json(project);
 });
-app.get("/projects", (_req, res) => {
-    res.json(getProjectsWithSeed());
+app.get("/projects", async (_req, res) => {
+    res.json(await getProjectsForRead());
 });
 const projectPatchSchema = projectCreateSchema.partial();
-app.patch("/projects/:id", requireRoles(["admin", "pm", "lead"]), (req, res) => {
+app.patch("/projects/:id", requireRoles(["admin", "pm", "lead"]), async (req, res) => {
     const projectId = getRequiredParam(req, "id");
     if (!projectId)
         return res.status(400).json({ error: "Invalid project id" });
     const parsed = projectPatchSchema.safeParse(req.body);
     if (!parsed.success)
         return res.status(400).json({ error: parsed.error.flatten() });
-    if (parsed.data.ownerMemberId && !findMemberById(parsed.data.ownerMemberId)) {
+    if (parsed.data.ownerMemberId && !(await findMemberById(parsed.data.ownerMemberId))) {
         return res.status(400).json({ error: "ownerMemberId invalid" });
     }
-    const updated = updateProject(projectId, parsed.data);
+    const updated = await updateProject(projectId, parsed.data);
     if (!updated)
         return res.status(404).json({ error: "Project not found" });
+    emitEntityUpdated({ type: "projects" });
     return res.json(updated);
 });
-app.delete("/projects/:id", requireRoles(["admin", "pm", "lead"]), (req, res) => {
+app.delete("/projects/:id", requireRoles(["admin", "pm", "lead"]), async (req, res) => {
     const projectId = getRequiredParam(req, "id");
     if (!projectId)
         return res.status(400).json({ error: "Invalid project id" });
-    const deleted = softDeleteProject(projectId);
+    const deleted = await softDeleteProject(projectId);
     if (!deleted)
         return res.status(404).json({ error: "Project not found" });
+    emitEntityUpdated({ type: "projects" });
     return res.json({ status: "deleted", project: deleted });
 });
 const projectMemberSchema = z.object({
@@ -212,17 +222,17 @@ app.get("/projects/:id/members", (req, res) => {
         return res.status(400).json({ error: "Invalid project id" });
     res.json(projectMembers.filter((item) => item.projectId === projectId));
 });
-app.post("/projects/:id/members", requireRoles(["admin", "pm", "lead"]), (req, res) => {
+app.post("/projects/:id/members", requireRoles(["admin", "pm", "lead"]), async (req, res) => {
     const projectId = getRequiredParam(req, "id");
     if (!projectId)
         return res.status(400).json({ error: "Invalid project id" });
     const parsed = projectMemberSchema.safeParse(req.body);
     if (!parsed.success)
         return res.status(400).json({ error: parsed.error.flatten() });
-    const project = findProjectById(projectId);
+    const project = await findProjectById(projectId);
     if (!project)
         return res.status(404).json({ error: "Project not found" });
-    if (!findMemberById(parsed.data.memberId))
+    if (!(await findMemberById(parsed.data.memberId)))
         return res.status(400).json({ error: "memberId invalid" });
     const assignment = assignMemberToProject({
         projectId,
@@ -230,6 +240,7 @@ app.post("/projects/:id/members", requireRoles(["admin", "pm", "lead"]), (req, r
         assignmentRole: parsed.data.assignmentRole,
         allocationPercent: parsed.data.allocationPercent,
     });
+    emitEntityUpdated({ type: "projects" });
     return res.status(201).json(assignment);
 });
 app.delete("/projects/:id/members/:memberId", requireRoles(["admin", "pm", "lead"]), (req, res) => {
@@ -240,6 +251,7 @@ app.delete("/projects/:id/members/:memberId", requireRoles(["admin", "pm", "lead
     const removed = removeMemberFromProject(projectId, memberId);
     if (!removed)
         return res.status(404).json({ error: "Assignment not found" });
+    emitEntityUpdated({ type: "projects" });
     return res.json({ status: "removed" });
 });
 const taskCreateSchema = z.object({
@@ -250,47 +262,46 @@ const taskCreateSchema = z.object({
     priority: z.enum(["low", "medium", "high", "critical"]),
     plannedStartDate: z.string().optional(),
 });
-app.post("/tasks", requireRoles(["admin", "pm", "lead"]), (req, res) => {
+app.post("/tasks", requireRoles(["admin", "pm", "lead"]), async (req, res) => {
     const parsed = taskCreateSchema.safeParse(req.body);
     if (!parsed.success)
         return res.status(400).json({ error: parsed.error.flatten() });
-    if (!findProjectById(parsed.data.projectId))
+    if (!(await findProjectById(parsed.data.projectId)))
         return res.status(400).json({ error: "projectId invalid" });
-    if (!findMemberById(parsed.data.assigneeMemberId))
+    if (!(await findMemberById(parsed.data.assigneeMemberId)))
         return res.status(400).json({ error: "assigneeMemberId invalid" });
     if (new Date(parsed.data.dueDate).getTime() < Date.now() - 3650 * 24 * 60 * 60 * 1000) {
         return res.status(400).json({ error: "dueDate invalid" });
     }
-    // Auto-generate task code: find max TSK-NNN and increment
-    const existingCodes = tasks.map((t) => t.taskCode);
-    let nextNum = 1;
-    for (const code of existingCodes) {
-        const match = /^TSK-(\d+)$/.exec(code);
-        if (match) {
-            const num = Number.parseInt(match[1] ?? "0", 10);
-            if (num >= nextNum)
-                nextNum = num + 1;
-        }
+    let taskCode;
+    if (isPersistenceEnabled()) {
+        taskCode = await nextTaskCodeFromDb();
     }
-    const taskCode = `TSK-${String(nextNum).padStart(3, "0")}`;
-    const task = createTask({ taskCode, ...parsed.data });
+    else {
+        const existingCodes = (await getTasks({})).map((t) => t.taskCode);
+        let nextNum = 1;
+        for (const code of existingCodes) {
+            const match = /^TSK-(\d+)$/.exec(code);
+            if (match) {
+                const num = Number.parseInt(match[1] ?? "0", 10);
+                if (num >= nextNum)
+                    nextNum = num + 1;
+            }
+        }
+        taskCode = `TSK-${String(nextNum).padStart(3, "0")}`;
+    }
+    const task = await createTask({ taskCode, ...parsed.data });
+    emitEntityUpdated({ type: "tasks", taskIds: [task.id] });
     return res.status(201).json(task);
 });
-app.get("/tasks", (_req, res) => {
+app.get("/tasks", async (_req, res) => {
     const projectId = typeof _req.query.projectId === "string" ? _req.query.projectId : undefined;
     const memberId = typeof _req.query.memberId === "string" ? _req.query.memberId : undefined;
     const status = typeof _req.query.status === "string" ? _req.query.status : undefined;
-    const search = typeof _req.query.search === "string" ? _req.query.search.toLowerCase() : undefined;
+    const search = typeof _req.query.search === "string" ? _req.query.search : undefined;
     const dateFrom = typeof _req.query.dateFrom === "string" ? _req.query.dateFrom : undefined;
     const dateTo = typeof _req.query.dateTo === "string" ? _req.query.dateTo : undefined;
-    const filtered = tasks
-        .filter((item) => !item.deletedAt)
-        .filter((item) => (projectId ? item.projectId === projectId : true))
-        .filter((item) => (memberId ? item.assigneeMemberId === memberId : true))
-        .filter((item) => (status ? item.status === status : true))
-        .filter((item) => (search ? `${item.taskCode} ${item.title}`.toLowerCase().includes(search) : true))
-        .filter((item) => (dateFrom ? item.dueDate >= dateFrom : true))
-        .filter((item) => (dateTo ? item.dueDate <= dateTo : true));
+    const filtered = await getTasks({ projectId, memberId, status, search, dateFrom, dateTo });
     res.json(filtered);
 });
 const taskPatchSchema = z
@@ -305,17 +316,17 @@ const taskPatchSchema = z
     completedAt: z.string().optional(),
 })
     .strict();
-app.patch("/tasks/:id", requireRoles(["admin", "pm", "lead"]), (req, res) => {
+app.patch("/tasks/:id", requireRoles(["admin", "pm", "lead"]), async (req, res) => {
     const taskId = getRequiredParam(req, "id");
     if (!taskId)
         return res.status(400).json({ error: "Invalid task id" });
     const parsed = taskPatchSchema.safeParse(req.body);
     if (!parsed.success)
         return res.status(400).json({ error: parsed.error.flatten() });
-    const current = findTaskById(taskId);
+    const current = await findTaskById(taskId);
     if (!current)
         return res.status(404).json({ error: "Task not found" });
-    if (parsed.data.assigneeMemberId && !findMemberById(parsed.data.assigneeMemberId)) {
+    if (parsed.data.assigneeMemberId && !(await findMemberById(parsed.data.assigneeMemberId))) {
         return res.status(400).json({ error: "assigneeMemberId invalid" });
     }
     if (parsed.data.dueDate && new Date(parsed.data.dueDate).toString() === "Invalid Date") {
@@ -330,12 +341,14 @@ app.patch("/tasks/:id", requireRoles(["admin", "pm", "lead"]), (req, res) => {
             patchData.status = "done";
         }
         else if (current.status === "done" || current.completedAt) {
-            // Progress dropped below 100 — revert to in_progress
             patchData.completedAt = undefined;
             patchData.status = "in_progress";
         }
     }
-    const updated = updateTask(taskId, patchData);
+    const updated = await updateTask(taskId, patchData);
+    if (!updated)
+        return res.status(500).json({ error: "Task update failed" });
+    emitEntityUpdated({ type: "tasks", taskIds: [updated.id] });
     return res.json(updated);
 });
 app.get("/tasks/:id/history", (req, res) => {
@@ -344,26 +357,25 @@ app.get("/tasks/:id/history", (req, res) => {
         return res.status(400).json({ error: "Invalid task id" });
     res.json(taskHistory.filter((item) => item.taskId === taskId));
 });
-app.get("/analytics/dashboard", (_req, res) => {
+app.get("/analytics/dashboard", async (_req, res) => {
     res.json({
-        summary: getDashboardSummary(),
-        statusDistribution: getStatusDistribution(),
-        delayTrend: getDelayTrend(),
-        performance: getPerformance(),
+        summary: await getDashboardSummary(),
+        statusDistribution: await getStatusDistribution(),
+        delayTrend: await getDelayTrend(),
+        performance: await getPerformance(),
     });
 });
-app.get("/analytics/performance", (req, res) => {
+app.get("/analytics/performance", async (req, res) => {
     const periodType = req.query.periodType ?? "month";
     const periodKey = req.query.periodKey ?? "2026-03";
-    res.json(getPerformanceByPeriod(periodType, periodKey));
+    res.json(await getPerformanceByPeriod(periodType, periodKey));
 });
-app.get("/analytics/delay-trend", (_req, res) => {
-    res.json(getDelayTrend());
+app.get("/analytics/delay-trend", async (_req, res) => {
+    res.json(await getDelayTrend());
 });
-app.get("/analytics/tasks-drilldown", (_req, res) => {
-    const data = tasks
-        .filter((task) => !task.deletedAt)
-        .map((task) => ({
+app.get("/analytics/tasks-drilldown", async (_req, res) => {
+    const taskList = await getTasks({});
+    const data = taskList.map((task) => ({
         id: task.id,
         taskCode: task.taskCode,
         title: task.title,
@@ -374,10 +386,10 @@ app.get("/analytics/tasks-drilldown", (_req, res) => {
     }));
     res.json(data);
 });
-app.get("/reports/weekly", (_req, res) => {
+app.get("/reports/weekly", async (_req, res) => {
     res.json({
         generatedAt: new Date().toISOString(),
-        rows: getWeeklyReportRows(),
+        rows: await getWeeklyReportRows(),
     });
 });
 app.get("/reports", (_req, res) => {
@@ -428,10 +440,10 @@ app.post("/reports/weekly/export", requireRoles(["admin", "pm", "lead"]), async 
     });
     try {
         updateReportRecord(excelReport.id, { status: "running" });
-        const excelPath = await executeWithRetry(() => generateExcelReport("weekly", parsed.data.periodStart, parsed.data.periodEnd, getWeeklyReportRows()));
+        const excelPath = await executeWithRetry(async () => generateExcelReport("weekly", parsed.data.periodStart, parsed.data.periodEnd, await getWeeklyReportRows()));
         updateReportRecord(excelReport.id, { status: "success", filePath: excelPath, completedAt: new Date().toISOString() });
         updateReportRecord(pdfReport.id, { status: "running" });
-        const pdfPath = await executeWithRetry(() => generatePdfReport("weekly", parsed.data.periodStart, parsed.data.periodEnd, getPerformance()));
+        const pdfPath = await executeWithRetry(async () => generatePdfReport("weekly", parsed.data.periodStart, parsed.data.periodEnd, await getPerformance()));
         updateReportRecord(pdfReport.id, { status: "success", filePath: pdfPath, completedAt: new Date().toISOString() });
         addAuditLog({ action: "report.export.weekly", entityType: "report", entityId: excelReport.id, metadata: {} });
         const payload = { status: "success", reports: [excelReport.id, pdfReport.id], exportDir: EXPORT_DIR };
@@ -468,10 +480,10 @@ app.post("/reports/monthly/export", requireRoles(["admin", "pm", "lead"]), async
     });
     try {
         updateReportRecord(excelReport.id, { status: "running" });
-        const excelPath = await executeWithRetry(() => generateExcelReport("monthly", parsed.data.periodStart, parsed.data.periodEnd, getMonthlyReportRows()));
+        const excelPath = await executeWithRetry(async () => generateExcelReport("monthly", parsed.data.periodStart, parsed.data.periodEnd, await getMonthlyReportRows()));
         updateReportRecord(excelReport.id, { status: "success", filePath: excelPath, completedAt: new Date().toISOString() });
         updateReportRecord(pdfReport.id, { status: "running" });
-        const pdfPath = await executeWithRetry(() => generatePdfReport("monthly", parsed.data.periodStart, parsed.data.periodEnd, getPerformance()));
+        const pdfPath = await executeWithRetry(async () => generatePdfReport("monthly", parsed.data.periodStart, parsed.data.periodEnd, await getPerformance()));
         updateReportRecord(pdfReport.id, { status: "success", filePath: pdfPath, completedAt: new Date().toISOString() });
         addAuditLog({ action: "report.export.monthly", entityType: "report", entityId: excelReport.id, metadata: {} });
         const payload = { status: "success", reports: [excelReport.id, pdfReport.id], exportDir: EXPORT_DIR };
@@ -502,9 +514,15 @@ app.post("/reports/cleanup", requireRoles(["admin"]), async (req, res) => {
 app.use("/exports", express.static(EXPORT_DIR));
 const port = Number(process.env.PORT ?? 4000);
 const host = process.env.HOST ?? "0.0.0.0";
-app.listen(port, host, () => {
-    console.log(`Backend listening on http://${host}:${port}`);
-});
+const httpServer = createServer(app);
+attachSocketIo(httpServer, corsOrigin);
+async function start() {
+    await loadOrInitializePersistence();
+    httpServer.listen(port, host, () => {
+        console.log(`Backend listening on http://${host}:${port}`);
+    });
+}
+void start();
 setInterval(() => {
     void cleanupOldReports(14);
 }, 60 * 60 * 1000);

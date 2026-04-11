@@ -1,6 +1,7 @@
 "use client";
 
-import { memo, useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
+import type { KeyboardEvent } from "react";
 import { Box, TextField } from "@mui/material";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { PickerDay, type PickerDayProps } from "@mui/x-date-pickers/PickerDay";
@@ -51,9 +52,23 @@ export const ProgressEditor = memo(function ProgressEditor({
   onCommit: (taskId: string, value: number, currentProgress: number) => void;
 }) {
   const [draft, setDraft] = useState<string>(String(currentProgress));
+  const skipBlurCommitRef = useRef(false);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  /** While true, ignore prop-driven draft sync so we never overwrite local edits with a stale currentProgress. */
+  const inputFocusedRef = useRef(false);
+
   useEffect(() => {
+    if (inputFocusedRef.current) return;
     setDraft(String(currentProgress));
-  }, [currentProgress]);
+  }, [currentProgress, taskId]);
+
+  const clampDraft = useCallback(
+    (raw: string) => {
+      const parsed = Number(raw);
+      return Math.min(100, Math.max(0, Number.isFinite(parsed) ? parsed : currentProgress));
+    },
+    [currentProgress],
+  );
 
   const fillPercent = Math.min(100, Math.max(0, Number.isFinite(Number(draft)) ? Number(draft) : currentProgress));
 
@@ -81,6 +96,7 @@ export const ProgressEditor = memo(function ProgressEditor({
       }}
     >
       <TextField
+        inputRef={inputRef}
         size="small"
         variant="standard"
         value={`${draft}%`}
@@ -94,6 +110,17 @@ export const ProgressEditor = memo(function ProgressEditor({
           "& .MuiInputBase-root": { height: "100%" },
           "& input": { color: "#000 !important" },
         }}
+        onFocus={() => {
+          inputFocusedRef.current = true;
+        }}
+        onBlur={() => {
+          inputFocusedRef.current = false;
+          if (skipBlurCommitRef.current) return;
+          const clamped = clampDraft(draft);
+          if (clamped !== currentProgress) {
+            onCommit(taskId, clamped, currentProgress);
+          }
+        }}
         onChange={(e) => {
           const digits = e.target.value.replace(/[^0-9]/g, "");
           if (!digits) {
@@ -103,12 +130,18 @@ export const ProgressEditor = memo(function ProgressEditor({
           const normalized = String(Math.min(100, Math.max(0, Number(digits))));
           setDraft(normalized);
         }}
-        onKeyDown={(e) => {
+        onKeyDown={(e: KeyboardEvent<HTMLDivElement>) => {
           if (e.key === "Enter") {
+            if (e.nativeEvent.isComposing) return;
             e.preventDefault();
-            const parsed = Number(draft);
-            const clamped = Math.min(100, Math.max(0, Number.isFinite(parsed) ? parsed : currentProgress));
+            e.stopPropagation();
+            skipBlurCommitRef.current = true;
+            const clamped = clampDraft(draft);
             onCommit(taskId, clamped, currentProgress);
+            queueMicrotask(() => {
+              inputRef.current?.blur();
+              skipBlurCommitRef.current = false;
+            });
           }
           if (e.key === "Escape") {
             e.preventDefault();
@@ -132,23 +165,36 @@ export const TaskDescriptionEditor = memo(function TaskDescriptionEditor({
   onCommit: (taskId: string, value: string, currentTitle: string) => void;
 }) {
   const [draft, setDraft] = useState<string>(currentTitle);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const inputFocusedRef = useRef(false);
+
   useEffect(() => {
+    if (inputFocusedRef.current) return;
     setDraft(currentTitle);
-  }, [currentTitle]);
+  }, [currentTitle, taskId]);
 
   return (
     <TextField
+      inputRef={inputRef}
       size="small"
       variant="standard"
       fullWidth
       value={draft}
       disabled={!canMutate}
       InputProps={{ disableUnderline: true }}
+      onFocus={() => {
+        inputFocusedRef.current = true;
+      }}
+      onBlur={() => {
+        inputFocusedRef.current = false;
+      }}
       onChange={(e) => setDraft(e.target.value)}
       onKeyDown={(e) => {
         if (e.key === "Enter") {
+          if (e.nativeEvent.isComposing) return;
           e.preventDefault();
           onCommit(taskId, draft, currentTitle);
+          queueMicrotask(() => inputRef.current?.blur());
         }
         if (e.key === "Escape") {
           e.preventDefault();

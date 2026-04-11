@@ -33,7 +33,7 @@ export function createTaskColumns(timelineMonthDays: Date[]): ColumnDef<TaskTabl
         return (
           <Box sx={{ flexGrow: 1, minWidth: 420 }}>
             <TaskDescriptionEditor
-              key={`${row.original.id}-${row.original.title}`}
+              key={row.original.id}
               taskId={row.original.id}
               currentTitle={row.original.title}
               canMutate={m.canMutateTasks}
@@ -234,7 +234,7 @@ export function createTaskColumns(timelineMonthDays: Date[]): ColumnDef<TaskTabl
           return (
             <Box sx={{ minWidth: 120 }}>
               <ProgressEditor
-                key={`${row.original.id}-${progress}`}
+                key={row.original.id}
                 taskId={row.original.id}
                 currentProgress={progress}
                 canMutate={m.canMutateTasks}
@@ -257,7 +257,7 @@ export function createTaskColumns(timelineMonthDays: Date[]): ColumnDef<TaskTabl
             <MuiTooltip title={tooltipTitle} arrow>
               <Box>
                 <ProgressEditor
-                  key={`${row.original.id}-${progress}`}
+                  key={row.original.id}
                   taskId={row.original.id}
                   currentProgress={progress}
                   canMutate={m.canMutateTasks}
