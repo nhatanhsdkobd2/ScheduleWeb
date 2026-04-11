@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ScheduleWeb Dashboard",
+  title: "Software team's work schedule",
   description: "Member, task, report management dashboard",
 };
 

@@ -3,18 +3,18 @@
 import { z } from "zod";
 
 export const memberFormSchema = z.object({
-  fullName: z.string().min(2, "Full name toi thieu 2 ky tu"),
-  email: z.string().email("Email khong hop le"),
+  fullName: z.string().min(2, "Full name must be at least 2 characters"),
+  email: z.string().email("Invalid email address"),
   role: z.enum(["admin", "pm", "lead", "member"]),
   team: z.string().min(1, "Team is required"),
   status: z.enum(["active", "inactive"]),
 });
 
 export const taskFormSchema = z.object({
-  title: z.string().min(3, "Title toi thieu 3 ky tu"),
-  projectId: z.string().min(1, "Can chon project"),
-  assigneeMemberId: z.string().min(1, "Can chon assignee"),
-  dueDate: z.string().min(1, "Can chon due date"),
+  title: z.string().min(3, "Title must be at least 3 characters"),
+  projectId: z.string().min(1, "Select a project"),
+  assigneeMemberId: z.string().min(1, "Select an assignee"),
+  dueDate: z.string().min(1, "Select a due date"),
   priority: z.enum(["low", "medium", "high", "critical"]),
   plannedStartDate: z.string().optional(),
 });

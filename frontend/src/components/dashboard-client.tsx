@@ -3,6 +3,7 @@
 import {
   Alert,
   AppBar,
+  Avatar,
   Box,
   Button,
   CircularProgress,
@@ -51,6 +52,9 @@ import ProjectSelect from "@/components/project-select";
 import DataTable from "@/components/data-table";
 import type { ColumnDef } from "@tanstack/react-table";
 import { format } from "date-fns";
+import Link from "next/link";
+import { useAuth } from "@/context/AuthContext";
+import { isAppAdminEmail } from "@/lib/app-admin";
 
 /** Map priority -> display label */
 function priorityLabel(priority: Task["priority"]): string {
@@ -546,13 +550,75 @@ const InlineDateEditor = memo(function InlineDateEditor({
   );
 });
 
+function headerUserDisplayName(u: { displayName: string | null; email: string | null }): string {
+  if (u.displayName?.trim()) return u.displayName.trim();
+  if (u.email) {
+    const local = u.email.split("@")[0];
+    return local && local.length > 0 ? local : u.email;
+  }
+  return "User";
+}
+
+function AppHeaderAuth() {
+  const { user, loading, signOutUser } = useAuth();
+  if (loading) {
+    return (
+      <Box sx={{ display: "flex", alignItems: "center", minWidth: 72, justifyContent: "flex-end" }}>
+        <CircularProgress size={20} />
+      </Box>
+    );
+  }
+  if (!user) {
+    return (
+      <Button
+        component={Link}
+        href="/login"
+        variant="text"
+        size="small"
+        sx={{ textTransform: "none", fontWeight: 600, color: "#0f172a" }}
+      >
+        Sign in
+      </Button>
+    );
+  }
+  const name = headerUserDisplayName(user);
+  const tip = user.email ? `${name} · ${user.email}` : name;
+  return (
+    <Stack direction="row" spacing={1.25} alignItems="center" flexWrap="wrap" useFlexGap>
+      <MuiTooltip title={tip} arrow>
+        <Avatar src={user.photoURL ?? undefined} alt={name} sx={{ width: 36, height: 36 }} />
+      </MuiTooltip>
+      <Box sx={{ minWidth: 0, maxWidth: 220, display: { xs: "none", sm: "block" } }}>
+        <Typography variant="body2" fontWeight={700} lineHeight={1.2} noWrap title={name}>
+          {name}
+        </Typography>
+        {user.email ? (
+          <Typography variant="caption" color="text.secondary" display="block" noWrap title={user.email}>
+            {user.email}
+          </Typography>
+        ) : null}
+      </Box>
+      <Button
+        variant="text"
+        size="small"
+        onClick={() => void signOutUser()}
+        sx={{ textTransform: "none", fontWeight: 600, color: "#0f172a" }}
+      >
+        Sign out
+      </Button>
+    </Stack>
+  );
+}
+
 export default function DashboardClient() {
   const queryClient = useQueryClient();
   const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
+  useEffect(() => {
+    queueMicrotask(() => setMounted(true));
+  }, []);
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState(0);
   const [selectedTeam, setSelectedTeam] = useState("all");
-  const [selectedRole, setSelectedRole] = useState<"admin" | "pm" | "lead" | "member">("lead");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editMember, setEditMember] = useState<Member | null>(null);
   const [taskDrawerOpen, setTaskDrawerOpen] = useState(false);
@@ -626,12 +692,14 @@ export default function DashboardClient() {
         dateTo: dateTo || undefined,
       }),
   });
-  const totalTasksQuery = useQuery<Task[]>({
-    queryKey: ["tasks-total-count"],
+  /** Single unfiltered list for total count + shared cache; same payload as previous `tasks-total-count` query */
+  const tasksAllQuery = useQuery<Task[]>({
+    queryKey: ["tasks", "all"],
     queryFn: () => getTasksByFilters({}),
   });
 
-  const canMutate = selectedRole !== "member";
+  const canMutateTasks = Boolean(user);
+  const canMutateMembersProjects = Boolean(user) && isAppAdminEmail(user?.email);
 
   const patchTaskInCurrentQuery = useCallback((taskId: string, patch: Partial<Task>) => {
     queryClient.setQueryData<Task[]>(tasksQueryKey, (prev) => {
@@ -711,25 +779,39 @@ export default function DashboardClient() {
   });
 
   const tasks = useMemo(() => tasksQuery.data ?? [], [tasksQuery.data]);
-  const totalTasksCount = totalTasksQuery.data?.length ?? tasks.length;
+  const totalTasksCount = tasksAllQuery.data?.length ?? tasks.length;
   const members = useMemo(() => membersQuery.data ?? [], [membersQuery.data]);
   const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data]);
 
+  const projectById = useMemo(() => {
+    const m = new Map<string, Project>();
+    for (const p of projects) m.set(p.id, p);
+    return m;
+  }, [projects]);
+
+  const memberById = useMemo(() => {
+    const m = new Map<string, Member>();
+    for (const mem of members) m.set(mem.id, mem);
+    return m;
+  }, [members]);
+
   const commitProgress = useCallback(
     (taskId: string, value: number, currentProgress: number) => {
+      if (!canMutateTasks) return;
       if (value !== currentProgress) {
         updateTaskMutation.mutate({ id: taskId, payload: { progress: value } });
       }
     },
-    [updateTaskMutation],
+    [canMutateTasks, updateTaskMutation],
   );
   const commitTaskTitle = useCallback(
     (taskId: string, value: string, currentTitle: string) => {
+      if (!canMutateTasks) return;
       const next = value.trim();
       if (!next || next === currentTitle) return;
       updateTaskMutation.mutate({ id: taskId, payload: { title: next } });
     },
-    [updateTaskMutation],
+    [canMutateTasks, updateTaskMutation],
   );
 
   /** Default IDs for new task creation */
@@ -773,8 +855,8 @@ export default function DashboardClient() {
   /** Derived rows for Task table */
   const taskTableRows = useMemo<TaskTableRow[]>(() => {
     return filteredTasks.map((task) => {
-      const project = projects.find((p) => p.id === task.projectId);
-      const member = members.find((m) => m.id === task.assigneeMemberId);
+      const project = projectById.get(task.projectId);
+      const member = memberById.get(task.assigneeMemberId);
       // Use plannedStartDate if set; if not, use today only after mount (avoids hydration mismatch)
       // During SSR / before mount, fallback to empty string → format shows "Invalid Date" but harmless
       const startDateStr = task.plannedStartDate ?? (mounted ? new Date().toISOString().slice(0, 10) : "");
@@ -795,8 +877,7 @@ export default function DashboardClient() {
         raw: task,
       };
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredTasks, projects, members, mounted]);
+  }, [filteredTasks, projectById, memberById, mounted]);
 
   const timelineMonthDays = useMemo(() => {
     // Tasks timeline always follows the current month.
@@ -845,10 +926,16 @@ export default function DashboardClient() {
 
   const performanceChartData = useMemo(() => {
     const now = mounted ? new Date() : null;
+    const overdueByMember = new Map<string, number>();
+    if (now) {
+      for (const task of filteredTasks) {
+        const aid = task.assigneeMemberId;
+        if (!aid || !isTaskOverdue(task, now)) continue;
+        overdueByMember.set(aid, (overdueByMember.get(aid) ?? 0) + 1);
+      }
+    }
     return filteredMembers.map((member) => {
-      const ownTasks = filteredTasks.filter((task) => task.assigneeMemberId === member.id);
-      const overdueCount = now ? ownTasks.filter((task) => isTaskOverdue(task, now)).length : 0;
-      // New rule: each overdue task deducts 1 point from 100.
+      const overdueCount = overdueByMember.get(member.id) ?? 0;
       const score = Math.max(0, 100 - overdueCount);
       return {
         name: member.fullName,
@@ -885,7 +972,7 @@ export default function DashboardClient() {
   }, [isTaskListLoadingMore, visibleTaskRows.length, taskTableRows.length]);
 
   useEffect(() => {
-    setTaskRowsVisible(50);
+    queueMicrotask(() => setTaskRowsVisible(50));
   }, [selectedTeam, selectedProjectId, selectedMemberId, dateFrom, dateTo]);
 
   useEffect(() => {
@@ -964,30 +1051,43 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL (e.g. https
       ),
       cell: ({ row }) => (
         <Box sx={{ width: "100%", display: "flex", justifyContent: "flex-end" }}>
-          <Stack direction="row" spacing={1}>
-            <Button
-              size="small"
-              disabled={!canMutate}
-              onClick={() => {
-                setEditMember(row.original);
-                setMemberForm({
-                  fullName: row.original.fullName,
-                  email: row.original.email,
-                  role: row.original.role,
-                  team: row.original.team,
-                  status: row.original.status,
-                });
-                setMemberFormInputKey((k) => k + 1);
-                setMemberErrors({});
-                setDialogOpen(true);
-              }}
-            >
-              Edit
-            </Button>
-            <Button size="small" color="error" disabled={!canMutate} onClick={() => deleteMemberMutation.mutate(row.original.id)}>
-              Delete
-            </Button>
-          </Stack>
+          {canMutateMembersProjects ? (
+            <Stack direction="row" spacing={1}>
+              <Button
+                size="small"
+                onClick={() => {
+                  if (!canMutateMembersProjects) return;
+                  setEditMember(row.original);
+                  setMemberForm({
+                    fullName: row.original.fullName,
+                    email: row.original.email,
+                    role: row.original.role,
+                    team: row.original.team,
+                    status: row.original.status,
+                  });
+                  setMemberFormInputKey((k) => k + 1);
+                  setMemberErrors({});
+                  setDialogOpen(true);
+                }}
+              >
+                Edit
+              </Button>
+              <Button
+                size="small"
+                color="error"
+                onClick={() => {
+                  if (!canMutateMembersProjects) return;
+                  deleteMemberMutation.mutate(row.original.id);
+                }}
+              >
+                Delete
+              </Button>
+            </Stack>
+          ) : (
+            <Typography variant="body2" color="text.secondary">
+              —
+            </Typography>
+          )}
         </Box>
       ),
     },
@@ -1004,28 +1104,41 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL (e.g. https
       ),
       cell: ({ row }) => (
         <Box sx={{ width: "100%", display: "flex", justifyContent: "flex-end" }}>
-          <Stack direction="row" spacing={1}>
-            <Button
-              size="small"
-              disabled={!canMutate}
-              onClick={() => {
-                setEditProject(row.original);
-                setProjectForm({
-                  name: row.original.name,
-                  description: row.original.description ?? "",
-                  status: row.original.status,
-                });
-                setProjectFormInputKey((k) => k + 1);
-                setProjectErrors({});
-                setProjectDialogOpen(true);
-              }}
-            >
-              Edit
-            </Button>
-            <Button size="small" color="error" disabled={!canMutate} onClick={() => deleteProjectMutation.mutate(row.original.id)}>
-              Delete
-            </Button>
-          </Stack>
+          {canMutateMembersProjects ? (
+            <Stack direction="row" spacing={1}>
+              <Button
+                size="small"
+                onClick={() => {
+                  if (!canMutateMembersProjects) return;
+                  setEditProject(row.original);
+                  setProjectForm({
+                    name: row.original.name,
+                    description: row.original.description ?? "",
+                    status: row.original.status,
+                  });
+                  setProjectFormInputKey((k) => k + 1);
+                  setProjectErrors({});
+                  setProjectDialogOpen(true);
+                }}
+              >
+                Edit
+              </Button>
+              <Button
+                size="small"
+                color="error"
+                onClick={() => {
+                  if (!canMutateMembersProjects) return;
+                  deleteProjectMutation.mutate(row.original.id);
+                }}
+              >
+                Delete
+              </Button>
+            </Stack>
+          ) : (
+            <Typography variant="body2" color="text.secondary">
+              —
+            </Typography>
+          )}
         </Box>
       ),
     },
@@ -1053,7 +1166,7 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL (e.g. https
             key={`${row.original.id}-${row.original.title}`}
             taskId={row.original.id}
             currentTitle={row.original.title}
-            canMutate={canMutate}
+            canMutate={canMutateTasks}
             onCommit={commitTaskTitle}
           />
         </Box>
@@ -1073,9 +1186,9 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL (e.g. https
           return (
             <Typography
               variant="body2"
-              sx={{ cursor: canMutate ? "pointer" : "default", minWidth: 170, whiteSpace: "nowrap" }}
+              sx={{ cursor: canMutateTasks ? "pointer" : "default", minWidth: 170, whiteSpace: "nowrap" }}
               onClick={() => {
-                if (canMutate) setActiveTaskCell({ taskId: row.original.id, field: "assignee" });
+                if (canMutateTasks) setActiveTaskCell({ taskId: row.original.id, field: "assignee" });
               }}
             >
               {row.original.assigneeName}
@@ -1089,7 +1202,7 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL (e.g. https
             variant="standard"
             fullWidth
             value={row.original.raw.assigneeMemberId}
-            disabled={!canMutate}
+            disabled={!canMutateTasks}
             InputProps={{ disableUnderline: true }}
             onChange={(e) => {
               updateTaskMutation.mutate({ id: row.original.id, payload: { assigneeMemberId: e.target.value } });
@@ -1122,9 +1235,9 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL (e.g. https
           return (
             <Typography
               variant="body2"
-              sx={{ cursor: canMutate ? "pointer" : "default", minWidth: 120, whiteSpace: "nowrap" }}
+              sx={{ cursor: canMutateTasks ? "pointer" : "default", minWidth: 120, whiteSpace: "nowrap" }}
               onClick={() => {
-                if (canMutate) setActiveTaskCell({ taskId: row.original.id, field: "start" });
+                if (canMutateTasks) setActiveTaskCell({ taskId: row.original.id, field: "start" });
               }}
             >
               {row.original.startDate}
@@ -1134,7 +1247,7 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL (e.g. https
         return (
           <InlineDateEditor
             value={row.original.raw.plannedStartDate ?? new Date().toISOString().slice(0, 10)}
-            canMutate={canMutate}
+            canMutate={canMutateTasks}
             onChange={(next) =>
               updateTaskMutation.mutate({ id: row.original.id, payload: { plannedStartDate: next } })
             }
@@ -1171,9 +1284,9 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL (e.g. https
           return (
             <Typography
               variant="body2"
-              sx={{ cursor: canMutate ? "pointer" : "default", minWidth: 130, whiteSpace: "nowrap" }}
+              sx={{ cursor: canMutateTasks ? "pointer" : "default", minWidth: 130, whiteSpace: "nowrap" }}
               onClick={() => {
-                if (canMutate) setActiveTaskCell({ taskId: row.original.id, field: "complete" });
+                if (canMutateTasks) setActiveTaskCell({ taskId: row.original.id, field: "complete" });
               }}
             >
               {row.original.completeDate}
@@ -1183,7 +1296,7 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL (e.g. https
         return (
           <InlineDateEditor
             value={row.original.raw.dueDate}
-            canMutate={canMutate}
+            canMutate={canMutateTasks}
             onChange={(next) =>
               updateTaskMutation.mutate({ id: row.original.id, payload: { dueDate: next } })
             }
@@ -1206,9 +1319,9 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL (e.g. https
           return (
             <Typography
               variant="body2"
-              sx={{ cursor: canMutate ? "pointer" : "default", minWidth: 110, whiteSpace: "nowrap" }}
+              sx={{ cursor: canMutateTasks ? "pointer" : "default", minWidth: 110, whiteSpace: "nowrap" }}
               onClick={() => {
-                if (canMutate) setActiveTaskCell({ taskId: row.original.id, field: "priority" });
+                if (canMutateTasks) setActiveTaskCell({ taskId: row.original.id, field: "priority" });
               }}
             >
               {row.original.priority}
@@ -1222,7 +1335,7 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL (e.g. https
             variant="standard"
             fullWidth
             value={row.original.raw.priority}
-            disabled={!canMutate}
+            disabled={!canMutateTasks}
             InputProps={{ disableUnderline: true }}
             onChange={(e) => {
               updateTaskMutation.mutate({
@@ -1258,7 +1371,7 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL (e.g. https
                 key={`${row.original.id}-${progress}`}
                 taskId={row.original.id}
                 currentProgress={progress}
-                canMutate={canMutate}
+                canMutate={canMutateTasks}
                 isOverdue={false}
                 isDone={progress === 100}
                 onCommit={commitProgress}
@@ -1287,7 +1400,7 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL (e.g. https
                   key={`${row.original.id}-${progress}`}
                   taskId={row.original.id}
                   currentProgress={progress}
-                  canMutate={canMutate}
+                  canMutate={canMutateTasks}
                   isOverdue={isOverdue}
                   isDone={progress === 100}
                   onCommit={commitProgress}
@@ -1383,7 +1496,7 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL (e.g. https
     <Box sx={{ display: "flex", minHeight: "100vh" }}>
       <Drawer variant="permanent" sx={{ width: 220, "& .MuiDrawer-paper": { width: 220, p: 2 } }}>
         <Typography variant="h6" fontWeight={700} sx={{ mb: 2 }}>
-          Software team's work schedule
+          {"Software team's work schedule"}
         </Typography>
         <Tabs
           orientation="vertical"
@@ -1409,28 +1522,7 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL (e.g. https
                 Project operations overview
               </Typography>
             </Box>
-            <TextField
-              select
-              label="Role view"
-              size="small"
-              value={selectedRole}
-              onChange={(event) => setSelectedRole(event.target.value as "admin" | "pm" | "lead" | "member")}
-              sx={{
-                minWidth: 180,
-                "& .MuiOutlinedInput-root": {
-                  borderRadius: "9999px",
-                  backgroundColor: "#ffffff",
-                  transition: "all 300ms",
-                },
-                "& fieldset": { borderColor: "#e2e8f0" },
-                "& .MuiOutlinedInput-root:hover fieldset": { borderColor: "#cbd5e1" },
-              }}
-            >
-              <MenuItem value="admin">admin</MenuItem>
-              <MenuItem value="pm">pm</MenuItem>
-              <MenuItem value="lead">lead</MenuItem>
-              <MenuItem value="member">member</MenuItem>
-            </TextField>
+            <AppHeaderAuth />
           </Toolbar>
         </AppBar>
         <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 3 } }} className="bg-slate-50/60">
@@ -1542,11 +1634,10 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL (e.g. https
                 </Stack>
               </Box>
             )}
-            {!canMutate ? <Alert severity="info">Member role is read-only.</Alert> : null}
             {activeTab === 0 ? (
               <>
                 <Typography variant="h4" fontWeight={800} className="tracking-tight text-slate-900">
-                  Software team's work schedule
+                  {"Software team's work schedule"}
                 </Typography>
                 <Grid container spacing={2.5}>
                   <Grid size={{ xs: 12, md: 6, xl: 3 }}>
@@ -1650,25 +1741,27 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL (e.g. https
               <>
                 <Stack direction="row" justifyContent="space-between" alignItems="center">
                   <Typography variant="h5">Members</Typography>
-                  <Button
-                    variant="contained"
-                    disabled={!canMutate}
-                    onClick={() => {
-                      setEditMember(null);
-                      setMemberForm({
-                        fullName: "",
-                        email: "",
-                        role: "member",
-                        team: selectedTeam === "all" ? "Platform" : selectedTeam,
-                        status: "active",
-                      });
-                      setMemberFormInputKey((k) => k + 1);
-                      setMemberErrors({});
-                      setDialogOpen(true);
-                    }}
-                  >
-                    Add member
-                  </Button>
+                  {canMutateMembersProjects ? (
+                    <Button
+                      variant="contained"
+                      onClick={() => {
+                        if (!canMutateMembersProjects) return;
+                        setEditMember(null);
+                        setMemberForm({
+                          fullName: "",
+                          email: "",
+                          role: "member",
+                          team: selectedTeam === "all" ? "Mobile Team" : selectedTeam,
+                          status: "active",
+                        });
+                        setMemberFormInputKey((k) => k + 1);
+                        setMemberErrors({});
+                        setDialogOpen(true);
+                      }}
+                    >
+                      Add member
+                    </Button>
+                  ) : null}
                 </Stack>
                 <DataTable columns={memberColumns} data={filteredMembers} />
                 {filteredMembers.length === 0 ? <Alert severity="info">No members match the current filters.</Alert> : null}
@@ -1679,19 +1772,21 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL (e.g. https
               <>
                 <Stack direction="row" justifyContent="space-between" alignItems="center">
                   <Typography variant="h5">Projects</Typography>
-                  <Button
-                    variant="contained"
-                    disabled={!canMutate}
-                    onClick={() => {
-                      setEditProject(null);
-                      setProjectForm(DEFAULT_PROJECT_FORM);
-                      setProjectFormInputKey((k) => k + 1);
-                      setProjectErrors({});
-                      setProjectDialogOpen(true);
-                    }}
-                  >
-                    Add project
-                  </Button>
+                  {canMutateMembersProjects ? (
+                    <Button
+                      variant="contained"
+                      onClick={() => {
+                        if (!canMutateMembersProjects) return;
+                        setEditProject(null);
+                        setProjectForm(DEFAULT_PROJECT_FORM);
+                        setProjectFormInputKey((k) => k + 1);
+                        setProjectErrors({});
+                        setProjectDialogOpen(true);
+                      }}
+                    >
+                      Add project
+                    </Button>
+                  ) : null}
                 </Stack>
                 <DataTable columns={projectColumns} data={projects} />
                 {projects.length === 0 ? <Alert severity="info">No matching projects found.</Alert> : null}
@@ -1703,34 +1798,41 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL (e.g. https
                 <Stack direction="row" justifyContent="space-between" alignItems="center">
                   <Typography variant="h5">Tasks</Typography>
                   <Stack direction="row" spacing={1}>
-                    <Button
-                      variant="outlined"
-                      onClick={() => { void exportTasksToXLSX(taskTableRows, timelineMonthDays); }}
-                      disabled={taskTableRows.length === 0}
-                    >
-                      Export XLSX
-                    </Button>
-                    <Button
-                      variant="contained"
-                    disabled={!canMutate}
-                    onClick={() => {
-                      setEditTask(null);
-                      const today = mounted ? new Date().toISOString().slice(0, 10) : "";
-                      setTaskForm({
-                        title: "",
-                        projectId: defaultProjectId,
-                        assigneeMemberId: defaultMemberId,
-                        dueDate: today,
-                        priority: "medium",
-                        plannedStartDate: today,
-                      });
-                      setTaskTitleInputKey((k) => k + 1);
-                      setTaskErrors({});
-                      setTaskDrawerOpen(true);
-                    }}
-                  >
-                    Add task
-                  </Button>
+                    {canMutateMembersProjects ? (
+                      <Button
+                        variant="outlined"
+                        onClick={() => {
+                          if (!canMutateMembersProjects) return;
+                          void exportTasksToXLSX(taskTableRows, timelineMonthDays);
+                        }}
+                        disabled={taskTableRows.length === 0}
+                      >
+                        Export XLSX
+                      </Button>
+                    ) : null}
+                    {canMutateTasks ? (
+                      <Button
+                        variant="contained"
+                        onClick={() => {
+                          if (!canMutateTasks) return;
+                          setEditTask(null);
+                          const today = mounted ? new Date().toISOString().slice(0, 10) : "";
+                          setTaskForm({
+                            title: "",
+                            projectId: defaultProjectId,
+                            assigneeMemberId: defaultMemberId,
+                            dueDate: today,
+                            priority: "medium",
+                            plannedStartDate: today,
+                          });
+                          setTaskTitleInputKey((k) => k + 1);
+                          setTaskErrors({});
+                          setTaskDrawerOpen(true);
+                        }}
+                      >
+                        Add task
+                      </Button>
+                    ) : null}
                   </Stack>
                 </Stack>
                 <DataTable columns={taskColumns} data={visibleTaskRows} minTableWidth={1500} />
@@ -1800,6 +1902,7 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL (e.g. https
           <Button
             variant="contained"
             onClick={() => {
+              if (!canMutateMembersProjects) return;
               const payload = {
                 ...memberForm,
                 fullName: (memberFullNameInputRef.current?.value ?? "").trim(),
@@ -1896,6 +1999,7 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL (e.g. https
               <Button
                 variant="contained"
                 onClick={() => {
+                  if (!canMutateTasks) return;
                   const payload = {
                     ...taskForm,
                     title: (taskTitleInputRef.current?.value ?? "").trim(),
@@ -1938,6 +2042,7 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL (e.g. https
           <Button
             variant="contained"
             onClick={() => {
+              if (!canMutateMembersProjects) return;
               const projectName = (projectNameInputRef.current?.value ?? "").trim();
               if (!projectName) {
                 setProjectErrors((s) => ({ ...s, name: "Name is required" }));

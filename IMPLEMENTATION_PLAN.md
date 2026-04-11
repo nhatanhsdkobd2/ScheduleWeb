@@ -301,6 +301,7 @@ Duoi day la ke hoach trien khai chi tiet dua tren PRD. Moi muc co checklist [ ] 
 - [x] Load test dashboard aggregate endpoints.
 - [x] Benchmark export 10k rows.
 - [ ] Tune indexes/query plans sau ket qua test.
+- [ ] **Sau Section 16 (release perf logic)**: Chay lai `TEST_PLAN.md` muc 1 (lint/build/typecheck) + smoke backend; xac nhan khong regression filter/KPI/chart (manual nhanh).
 
 ## 12) Deployment & Release
 
@@ -343,7 +344,7 @@ Duoi day la ke hoach trien khai chi tiet dua tren PRD. Moi muc co checklist [ ] 
 - [x] Weekly/monthly export pipeline hoan chinh.
 
 ### Milestone 5 - Hardening + UAT + Go-live (Week 9-10)
-- [ ] Performance tuning.
+- [ ] Performance tuning (Section 16 — logic-only, PRD `CLAUDE.md` muc Client runtime).
 - [ ] Security/accessibility checklist pass.
 - [ ] UAT fix va production release.
 
@@ -361,3 +362,57 @@ Duoi day la ke hoach trien khai chi tiet dua tren PRD. Moi muc co checklist [ ] 
 - [ ] Moi task can ETA va priority.
 - [ ] Update trang thai checklist it nhat 2 lan/tuan.
 - [ ] Bat ky blocker >24h phai tao issue escalation.
+
+## 16) Release performance — logic only (pre end-user)
+
+**Rang buoc**: Khong thay doi chuc nang, khong thay doi UI (layout, component tree, copy, style). Chi dieu chinh cache, query, aggregate, va invalidate de giam lag/refetch thua.
+
+### 16.1 TanStack Query defaults (`frontend/src/components/providers.tsx`)
+- [x] Tao `QueryClient` voi `defaultOptions.queries`: `staleTime` (vd: 30–60s cho members/projects/tasks), `gcTime` hop ly, `refetchOnWindowFocus`/`retry` phu hop dashboard local.
+- [x] Kiem tra mutate handlers: `invalidateQueries` chi dung key can thiet (tranh prefix refetch qua rong neu khong can).
+
+### 16.2 Tranh tai trung full task list
+- [x] Hien tai: `tasksQuery` (filter) + `totalTasksQuery` (`getTasksByFilters({})`) — ca hai co the tra ve mang task day du; rut gon bang mot trong: (a) dem tong tu cache unfiltered neu da co, (b) `queryFn` count-only neu backend ho tro, (c) mot query key `["tasks","all"]` lam nguon that duy nhat cho `length` — **khong doi chuoi hien thi** `Showing a/b tasks`.
+
+### 16.3 Toi uu derived data trong `dashboard-client.tsx` (cung ket qua so lieu)
+- [x] Xay `Map` `projectId -> Project`, `memberId -> Member` (useMemo phu thuoc `projects`/`members`) dung cho `taskTableRows` thay cho `find` lap lai moi task.
+- [x] `performanceChartData` / workload: gom nhom task theo `assigneeMemberId` mot lan (`Map` hoac vong lap) thay cho `filter` long trong `map` member khi co the.
+- [x] Kiem tra cac `useMemo` phu thuoc: tranh tao array/object moi vo nghia lam con chau re-render (chi khi can thiet cho correctness).
+
+### 16.4 Backend (neu cham trong profiler — tuy chon, khong bat buoc neu in-memory nhanh)
+- [ ] Xac minh handler list task / analytics khong lap vo nghia tren tap du lieu; giu nguyen response shape.
+
+### 16.5 Xac nhan & test
+- [x] Chay `npm run lint` + `npm run build` (frontend), `npm run typecheck` + `npm run build` (backend).
+- [x] Chay smoke/perf script hien co neu co (`backend` perf-test / integration).
+- [ ] Manual: doi filter Dashboard + Tasks, inline edit mot o task — so lieu va UI giong truoc dot toi uu.
+
+## 17) FR-7 — App RBAC: Members & Projects (Firebase email)
+
+**Tham chieu PRD**: `CLAUDE.md` — **FR-7 App-level access: Members & Projects (Firebase email)**.
+
+**Rang buoc**: Chi tab **Members** va **Projects** trong `dashboard-client.tsx` (khong doi quyen Task/Dashboard theo spec FR-7). UI chuoi tieng Anh (tooltip read-only: `Only administrators can perform this action.`).
+
+### 17.1 Helper & cau hinh
+- [x] Them `src/lib/app-admin.ts`: `isAppAdminEmail` khop tap admin (mac dinh: `anhhoanginnova@gmail.com`, `thuan.ngo@vn.innova.com`) + tuy chon `NEXT_PUBLIC_APP_ADMIN_EMAIL` (comma-separated, them admin).
+- [x] (Tuy chon) Them `NEXT_PUBLIC_APP_ADMIN_EMAIL` vao `.env.example` (frontend).
+
+### 17.2 State / derived flags trong `dashboard-client.tsx`
+- [x] Tu `useAuth().user` suy ra `isAppAdmin = isAppAdminEmail(user?.email ?? null)`.
+- [x] Tach `canMutateTasks` (giu logic hien tai: can dang nhap Firebase) va `canMutateMembersProjects = Boolean(user) && isAppAdmin`.
+- [x] Doc lap voi backend `x-role` demo header — FR-7 chi dieu khien UI + guard client cho Members/Projects.
+
+### 17.3 UI — tab Members & Projects
+- [x] An nut **Add member** / **Add project** khi `!canMutateMembersProjects` (hoac disable + Tooltip neu khong the an sach).
+- [x] Cot Actions: an **Edit** / **Delete** khi `!canMutateMembersProjects` (spec cho phep an thay vi disable + Tooltip).
+- [x] Banner read-only Members/Projects + banner signed-out: **khong hien** (yeu cau product 2026).
+
+### 17.4 Handler / mutation guard (logic)
+- [x] Bao ham mo dialog Add/Edit member, Add/Edit project, delete member, delete project: dau ham `if (!canMutateMembersProjects) return;` (hoac `if (!isAppAdminEmail(...)) return;`).
+- [x] Bao submit handler trong Dialog/Drawer member & project neu chua co guard.
+- [x] Dam bao khong goi `mutate` Members/Projects khi khong phai admin (ke ca duong code ngam).
+
+### 17.5 Test & regression
+- [x] `npm run lint` + `npm run build` (frontend).
+- [ ] Manual: dang nhap admin email — CRUD Members/Projects hoat dong.
+- [ ] Manual: dang nhap email khac — chi xem, khong CRUD (khong con banner read-only).

@@ -240,12 +240,42 @@ Acceptance:
 - Filter theo member phai thay doi ket qua task list va chart ngay lap tuc.
 - Khong duoc xay ra filter desync (chon filter nhung data khong doi).
 
+## FR-7 App-level access: Members & Projects (Firebase email)
+
+**Pham vi**: Chi ap dung cho tab **Members** va **Projects** trong ung dung Next.js (hien tai tap trung o `dashboard-client.tsx`). Tab **Tasks**, **Dashboard**, va cac man hinh Firebase (`/login`, `/dashboard`) **khong doi** quyen chinh sua task theo yeu cau nay (van theo luat da co: can dang nhap Firebase de chinh sua task, v.v.).
+
+### Phan loai user (client)
+- **Admin ung dung**: Nguoi dung Firebase da dang nhap va `email` (normalized lowercase) khop **mot** trong tap admin: mac dinh trong code gom `anhhoanginnova@gmail.com` va `thuan.ngo@vn.innova.com`. Bien `NEXT_PUBLIC_APP_ADMIN_EMAIL` (tuy chon) co the la nhieu email cach nhau boi dau phay de **them** admin (khong thay the hai email mac dinh).
+- **Member ung dung**: Moi email da dang nhap khac admin.
+
+### Quyen hien thi (UI) — tab Members & Projects
+- **Admin**: Duoc **xem** danh sach / chi tiet (neu co) va **Add / Edit / Delete** day du nhu hien tai.
+- **Member**: Duoc **xem** danh sach va chi tiet; **khong** duoc thuc hien CRUD:
+  - Uu tien **an** hoan toan nut Add, Edit, Delete lien quan Members/Projects.
+  - Neu khong the an (vi du pattern component chung): **disable** nut va gan **Tooltip** (MUI) voi noi dung tieng Anh: `Only administrators can perform this action.` (thong nhat ngon ngu UI san pham).
+
+### Thong bao Read-only (UX)
+- **Khong** hien banner Alert read-only (Members/Projects) hoac signed-out tren dashboard — quyen van ro qua nut bi an / Sign in o header.
+
+### Bao mat muc logic / handler (client)
+- Moi handler mo dialog Add/Edit, goi Delete, hoac bat dau mutation **Members/Projects** phai co **guard**: neu khong phai admin thi `return` som (khong mo dialog, khong goi `mutate`). Day la lop bao ve them ngoai UI (phong truong hop goi ham trai phep).
+
+### Ghi chu
+- Day la **phan quyen phia client** dua tren Firebase `user.email`. **Backend** van can RBAC / xac thuc that cho API production; yeu cau nay khong thay the hardening server.
+
 ## 6) Non-Functional Requirements
 
 ### Performance
 - p95 API response < 500ms cho CRUD.
 - p95 dashboard aggregate query < 2s.
 - Export 10k dong du lieu < 15s (server-side).
+
+#### Client runtime & data layer (release readiness, chi toi uu logic — khong doi UI/chuc nang)
+- **Muc tieu cam nhan**: Giam lag khi doi filter/tab, giam refetch mang thua, giam chi phi tinh derived data tren main thread — **ket qua hien thi (so lieu, nhan, hanh vi nut) giu nguyen**.
+- **TanStack Query**: Cau hinh `QueryClient` default (`staleTime`, `gcTime`, `refetchOnWindowFocus`, …) phu hop dashboard “read-heavy”; sau mutate chi `invalidateQueries` dung key (tranh refetch toan bo nhanh task khong can thiet).
+- **Tranh duplicate payload**: Khong tai hai lan full danh sach task lon cho cung mot muc dich (vi du dem tong vs danh sach da filter) neu co the suy ra tu cache, query key chung, hoac endpoint nhe (count) — uu tien giai phap khong doi contract hien thi neu co the.
+- **Derived state (KPI, chart, task rows)**: Uu tien cau truc du lieu tra cuu O(1) (`Map` theo `projectId` / `memberId`) va mot vong lap tong hop thay vi long nhau `filter` + `find` tren moi phan tu khi so luong task/member lon.
+- **Giu nguyen**: Infinite scroll / “load more” task table, optimistic patch task, filter desync rules — chi toi uu ben duoi, khong doi nguong UX.
 
 ### Reliability
 - Availability muc tieu: 99.5% (business hours).
@@ -256,6 +286,7 @@ Acceptance:
   - Admin: full.
   - PM/Lead: CRUD task/project trong scope.
   - Member: read own tasks, update own progress.
+- **Bo sung (FR-7)**: Han che CRUD Members/Projects tren UI theo email admin Firebase; handler guard client-side; khong thay the xac thuc API server.
 - JWT/session secure, CSRF protection (neu dung cookie auth).
 - Audit log immutable cho thao tac nhay cam.
 
@@ -630,6 +661,8 @@ Standards:
 - Performance score tinh duoc cho month/quarter/year va drill-down den task.
 - Co audit log cho CRUD nhay cam va export.
 - Dat yeu cau p95 da neu trong NFR.
+- **Sau dot toi uu logic (release)**: Khong thay doi layout, label, luong nguoi dung; chi kiem tra hieu nang cam nhan (filter/tab, inline edit) va chay lai bo test trong `TEST_PLAN.md` (build/type/lint + smoke API).
+- **FR-7**: Admin email co the chinh sua Members/Projects; user khac chi xem hai tab nay; handler guard + tooltip/disable hoac an nut; khong bat buoc banner read-only tren UI.
 
 ## 16) Open Questions
 
