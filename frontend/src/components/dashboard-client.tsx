@@ -93,15 +93,14 @@ function filtersFromTasksQueryKey(key: readonly unknown[]): TaskFilters {
 }
 
 /**
- * Flatten infinite-query pages. Each page may be `{ items, total }` or a legacy raw `Task[]`
- * (same shape as an undecorated API response).
+ * Flatten infinite-query pages. Each page is normalized via `normalizeTasksPageResponse` so both
+ * legacy `Task[]` and `{ items, total }` (and bad cache shapes) never leave `.filter` on a non-array.
  */
 function flattenTaskPages(pages: unknown[] | undefined): Task[] {
   if (!Array.isArray(pages) || !pages.length) return [];
   const out: Task[] = [];
   for (const p of pages) {
-    const items = Array.isArray(p) ? p : (p as { items?: Task[] })?.items;
-    if (!Array.isArray(items)) continue;
+    const { items } = normalizeTasksPageResponse(p);
     for (const t of items) {
       if (t != null && String((t as Task).id ?? "").length > 0) out.push(t as Task);
     }
@@ -516,6 +515,10 @@ export default function DashboardClient() {
       if (loaded >= lp.total) return undefined;
       return loaded;
     },
+    select: (data) => ({
+      ...data,
+      pages: data.pages.map((p) => normalizeTasksPageResponse(p)),
+    }),
     placeholderData: keepPreviousData,
     refetchOnWindowFocus: false,
     structuralSharing: true,
@@ -624,12 +627,11 @@ export default function DashboardClient() {
           const prev = queryClient.getQueryData<Task[] | InfiniteData<TasksPageResponse>>(key);
           try {
             const { items: server, total } = await fetchAllTaskPages(filters);
-            const prevFlat =
-              prev && !Array.isArray(prev)
-                ? flattenTaskPages(prev.pages)
-                : Array.isArray(prev)
-                  ? prev.filter((t): t is Task => Boolean(t?.id))
-                  : undefined;
+            let prevFlat: Task[] | undefined;
+            if (!prev) prevFlat = undefined;
+            else if (Array.isArray(prev)) prevFlat = asTaskArray(prev);
+            else if ("pages" in prev && Array.isArray(prev.pages)) prevFlat = flattenTaskPages(prev.pages);
+            else prevFlat = asTaskArray(prev);
             const merged = mergeTasksPreserveRefs(prevFlat, server, protectedTaskId);
             if (key[1] === "all" && key[2] === "flat") {
               queryClient.setQueryData(key, merged);
@@ -672,14 +674,16 @@ export default function DashboardClient() {
         if (!prev.some((t) => t.id === taskId)) return prev;
         return prev.map((item) => (item.id === taskId ? { ...item, ...patch } : item));
       }
+      if (!("pages" in prev) || !Array.isArray(prev.pages)) return prev;
       let touched = false;
       const pages = prev.pages.map((page) => {
-        const nextItems = page.items.map((item) => {
+        const norm = normalizeTasksPageResponse(page);
+        const nextItems = norm.items.map((item) => {
           if (item.id !== taskId) return item;
           touched = true;
           return { ...item, ...patch };
         });
-        return { ...page, items: nextItems };
+        return { items: nextItems, total: norm.total };
       });
       return touched ? { ...prev, pages } : prev;
     });
@@ -763,10 +767,10 @@ export default function DashboardClient() {
     },
   });
 
-  const tasks = useMemo(() => {
+  const tasks = useMemo((): Task[] => {
     const pages = tasksInfinite.data?.pages;
     if (!Array.isArray(pages)) return [];
-    return flattenTaskPages(pages);
+    return asTaskArray(flattenTaskPages(pages));
   }, [tasksInfinite.data]);
   const filteredTasksTotal = useMemo(() => {
     const p0 = tasksInfinite.data?.pages?.[0];
@@ -850,13 +854,14 @@ export default function DashboardClient() {
     });
   }, [projects, projectSearch]);
   const filteredTasks = useMemo(() => {
+    const taskList = asTaskArray(tasks);
     // Build set of member IDs that match current team filter
     const teamMemberIds =
       selectedTeam === "all"
         ? null
         : new Set(members.filter((m) => m.team === selectedTeam).map((m) => m.id));
 
-    return tasks.filter((item) => {
+    return taskList.filter((item) => {
       // Team filter: check via member
       if (teamMemberIds && !teamMemberIds.has(item.assigneeMemberId)) return false;
       // Project filter

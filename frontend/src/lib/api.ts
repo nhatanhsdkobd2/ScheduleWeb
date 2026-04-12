@@ -78,6 +78,19 @@ export function asTaskArray(value: unknown): Task[] {
   return [];
 }
 
+function coerceTotal(value: unknown, fallback: number): number {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const n = Number(value);
+    if (Number.isFinite(n)) return n;
+  }
+  return fallback;
+}
+
+/**
+ * Normalize any `/tasks` page payload: legacy `Task[]`, or `{ items, total }` with loose typing
+ * (e.g. `items` missing, `total` as string). Always returns a real array for `items`.
+ */
 export function normalizeTasksPageResponse(raw: unknown): TasksPageResponse {
   if (Array.isArray(raw)) {
     const items = raw as Task[];
@@ -85,14 +98,10 @@ export function normalizeTasksPageResponse(raw: unknown): TasksPageResponse {
   }
   if (raw && typeof raw === "object") {
     const o = raw as Record<string, unknown>;
-    const items = o.items;
-    const total = o.total;
-    if (Array.isArray(items)) {
-      return {
-        items: items as Task[],
-        total: typeof total === "number" && Number.isFinite(total) ? total : items.length,
-      };
-    }
+    const itemsRaw = o.items;
+    const items = Array.isArray(itemsRaw) ? (itemsRaw as Task[]) : [];
+    const total = coerceTotal(o.total, items.length);
+    return { items, total };
   }
   return { items: [], total: 0 };
 }

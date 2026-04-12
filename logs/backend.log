@@ -1,5 +1,5 @@
-◇ injected env (0) from .env // tip: ◈ encrypted .env [www.dotenvx.com]
-◇ injected env (2) from ..\.env // tip: ⌘ enable debugging { debug: true }
+◇ injected env (0) from .env // tip: ⌁ auth for agents [www.vestauth.com]
+◇ injected env (2) from ..\.env // tip: ◈ encrypted .env [www.dotenvx.com]
 node:events:486
       throw er; // Unhandled 'error' event
       ^
