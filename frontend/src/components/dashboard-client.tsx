@@ -1183,7 +1183,7 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL (e.g. https
                 {"Software team's work schedule"}
               </Typography>
               <Typography variant="caption" className="text-slate-500">
-                Project operations overview
+                {"Thuan Ngo's Software Team"}
               </Typography>
             </Box>
             <AppHeaderAuth />

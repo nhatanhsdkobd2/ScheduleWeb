@@ -41,7 +41,7 @@ import {
   updateReportRecord,
   updateTask,
 } from "./data.js";
-import { isPersistenceEnabled } from "./db/index.js";
+import { getPool, isPersistenceEnabled, requireDatabaseInProduction } from "./db/index.js";
 import { nextTaskCodeFromDb } from "./db/task-store.js";
 import { generateExcelReport, generatePdfReport } from "./report-generator.js";
 import { attachSocketIo, emitEntityUpdated } from "./realtime.js";
@@ -51,16 +51,24 @@ const idempotencyCache = new Map<string, { status: "success"; reports: string[];
 
 /**
  * CORS: mặc định cho phép mọi origin (`origin: true` = echo header Origin).
- * Đặt ALLOWED_ORIGIN=https://mot-domain.com để chỉ cho phép một origin (không thêm / cuối).
- * ALLOWED_ORIGIN=* giữ hành vi “mọi domain” (giống không set).
+ * ALLOWED_ORIGIN=https://a.com,https://b.vercel.app — nhiều origin (phân tách bằng dấu phẩy, không dư / cuối).
+ * ALLOWED_ORIGIN=* hoặc không set: mọi domain (giống origin: true).
  */
 function normalizeOrigin(url: string): string {
   return url.replace(/\/+$/, "");
 }
-const rawOrigin = process.env.ALLOWED_ORIGIN?.trim();
-const explicitOrigin =
-  rawOrigin && rawOrigin !== "*" ? normalizeOrigin(rawOrigin) : undefined;
-const corsOrigin = explicitOrigin ?? true;
+function parseAllowedOrigins(): boolean | string | string[] {
+  const raw = process.env.ALLOWED_ORIGIN?.trim();
+  if (!raw || raw === "*") return true;
+  const parts = raw
+    .split(",")
+    .map((s) => normalizeOrigin(s.trim()))
+    .filter((s) => s.length > 0);
+  if (parts.length === 0) return true;
+  if (parts.length === 1) return parts[0]!;
+  return parts;
+}
+const corsOrigin = parseAllowedOrigins();
 
 const app = express();
 // Trust proxy so express-rate-limit can read X-Forwarded-For header
@@ -88,6 +96,7 @@ app.use(
     windowMs: 60 * 1000,
     max: 120,
     standardHeaders: true,
+    skip: (req) => req.path === "/health",
   }),
 );
 
@@ -150,8 +159,19 @@ async function cleanupOldReports(retentionDays: number): Promise<{ deletedReport
   return { deletedReports, deletedFiles };
 }
 
-app.get("/health", (_req, res) => {
-  res.json({ status: "ok" });
+app.get("/health", async (_req, res) => {
+  const persistence = isPersistenceEnabled();
+  if (!persistence) {
+    res.json({ status: "ok", persistence: false });
+    return;
+  }
+  try {
+    await getPool().query("SELECT 1 AS ping");
+    res.json({ status: "ok", persistence: true });
+  } catch (err) {
+    console.error("[health] database unreachable:", err);
+    res.status(503).json({ status: "degraded", persistence: true });
+  }
 });
 
 const memberCreateSchema = z.object({
@@ -577,6 +597,24 @@ app.post("/reports/cleanup", requireRoles(["admin"]), async (req, res) => {
 
 app.use("/exports", express.static(EXPORT_DIR));
 
+app.use((_req, res) => {
+  res.status(404).json({ error: "Not found" });
+});
+
+app.use((err: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error("[express] Unhandled error:", err);
+  if (res.headersSent) {
+    next(err);
+    return;
+  }
+  const isProd = process.env.NODE_ENV === "production";
+  const body: { error: string; detail?: string } = { error: "Internal Server Error" };
+  if (!isProd && err instanceof Error && err.message) {
+    body.detail = err.message;
+  }
+  res.status(500).json(body);
+});
+
 const port = Number(process.env.PORT ?? 4000);
 const host = process.env.HOST ?? "0.0.0.0";
 
@@ -584,13 +622,17 @@ const httpServer = createServer(app);
 attachSocketIo(httpServer, corsOrigin);
 
 async function start(): Promise<void> {
+  requireDatabaseInProduction();
   await loadOrInitializePersistence();
   httpServer.listen(port, host, () => {
     console.log(`Backend listening on http://${host}:${port}`);
   });
 }
 
-void start();
+void start().catch((err: unknown) => {
+  console.error("[FATAL] Server failed to start:", err);
+  process.exit(1);
+});
 
 setInterval(() => {
   void cleanupOldReports(14);

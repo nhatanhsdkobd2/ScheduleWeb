@@ -47,3 +47,18 @@ export async function closePool(): Promise<void> {
     pool = null;
   }
 }
+
+/**
+ * Call once before accepting traffic in production. Without Postgres the API uses in-memory
+ * data only — unsafe for real deployments — so we fail fast with an explicit log on Render.
+ */
+export function requireDatabaseInProduction(): void {
+  if (process.env.NODE_ENV !== "production") return;
+  if (isPersistenceEnabled()) return;
+  console.error(
+    "[FATAL] NODE_ENV=production but PostgreSQL is not configured.\n" +
+      "Set DATABASE_URL (recommended on Render) or PGHOST + PGDATABASE (and PGUSER / PGPASSWORD if needed).\n" +
+      "The server would otherwise run with in-memory-only data.",
+  );
+  process.exit(1);
+}

@@ -1,0 +1,10 @@
+# Render Blueprint — Web service for `backend/`. Set DATABASE_URL, ALLOWED_ORIGIN (Vercel URL(s)), NODE_ENV=production in the dashboard.
+# https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: scheduleweb-backend
+    runtime: node
+    rootDir: backend
+    buildCommand: npm ci && npm run build && npm run db:migrate
+    startCommand: npm start
+    healthCheckPath: /health
