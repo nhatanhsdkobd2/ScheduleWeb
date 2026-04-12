@@ -9,6 +9,7 @@ import type { Member } from "@shared/types/domain";
 import type { TaskTableMeta } from "@/components/task-table/task-table-meta";
 import { getRowEditingField } from "@/components/task-table/task-table-meta";
 import type { TaskTableRow } from "@/components/task-table/task-table-types";
+import { safeArray } from "@/lib/api";
 
 const remoteUpdateFlash = keyframes`
   0% { background-color: rgba(250, 204, 21, 0.42); }
@@ -100,6 +101,7 @@ export default function TaskDataTable({
   });
 
   const { activeTaskCell, canMutateTasks, members, mounted, timelineMonthDays, isTaskRowFlashing } = tableMeta;
+  const safeMembers = safeArray<Member>(members);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const rows = table.getRowModel().rows;
@@ -171,7 +173,7 @@ export default function TaskDataTable({
                 rowRemoteFlash={isTaskRowFlashing(row.original.id)}
                 editingField={getRowEditingField(row.original.id, activeTaskCell)}
                 canMutateTasks={canMutateTasks}
-                members={members}
+                members={safeMembers}
                 mounted={mounted}
                 timelineMonthDays={timelineMonthDays}
                 virtualSize={v.size}

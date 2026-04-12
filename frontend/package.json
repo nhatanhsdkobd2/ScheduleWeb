@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:clean": "node -e \"const fs=require('fs'); try { if (fs.existsSync('.next')) fs.rmSync('.next', { recursive: true, force: true }); } catch (e) { console.error(e); process.exit(1); }\" && next dev",
+    "dev:webpack": "next dev --webpack",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"

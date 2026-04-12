@@ -106,6 +106,35 @@ export function normalizeTasksPageResponse(raw: unknown): TasksPageResponse {
   return { items: [], total: 0 };
 }
 
+/**
+ * Coerce list endpoints that return `T[]` or mistakenly `{ items: T[] }` into a plain array.
+ * Prevents `.filter` / `.map` on non-arrays when the API or cache shape is wrong.
+ */
+export function safeArray<T>(value: unknown): T[] {
+  if (Array.isArray(value)) return value as T[];
+  if (value && typeof value === "object" && "items" in value) {
+    const items = (value as { items?: unknown }).items;
+    if (Array.isArray(items)) return items as T[];
+  }
+  return [];
+}
+
+/**
+ * Flatten infinite-query `pages` into a single `Task[]` (shared with the dashboard).
+ * Always returns an array, even when `pages` is missing or empty.
+ */
+export function flattenTaskPages(pages: unknown[] | undefined): Task[] {
+  if (!Array.isArray(pages) || pages.length === 0) return [];
+  const out: Task[] = [];
+  for (const p of pages) {
+    const { items } = normalizeTasksPageResponse(p);
+    for (const t of items) {
+      if (t != null && String((t as Task).id ?? "").length > 0) out.push(t as Task);
+    }
+  }
+  return out;
+}
+
 export function buildTasksQueryParams(filters: TaskFilters): URLSearchParams {
   const params = new URLSearchParams();
   if (filters.search) params.set("search", filters.search);

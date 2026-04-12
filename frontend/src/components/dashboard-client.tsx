@@ -49,7 +49,9 @@ import {
   asTaskArray,
   fetchAllTaskPages,
   fetchTasksPage,
+  flattenTaskPages,
   normalizeTasksPageResponse,
+  safeArray,
   type TaskFilters,
   type TasksPageResponse,
   publicApiBaseUrl,
@@ -92,22 +94,6 @@ function filtersFromTasksQueryKey(key: readonly unknown[]): TaskFilters {
   };
 }
 
-/**
- * Flatten infinite-query pages. Each page is normalized via `normalizeTasksPageResponse` so both
- * legacy `Task[]` and `{ items, total }` (and bad cache shapes) never leave `.filter` on a non-array.
- */
-function flattenTaskPages(pages: unknown[] | undefined): Task[] {
-  if (!Array.isArray(pages) || !pages.length) return [];
-  const out: Task[] = [];
-  for (const p of pages) {
-    const { items } = normalizeTasksPageResponse(p);
-    for (const t of items) {
-      if (t != null && String((t as Task).id ?? "").length > 0) out.push(t as Task);
-    }
-  }
-  return out;
-}
-
 function countBusinessDaysInclusive(startDateStr: string, endDateStr: string): number {
   const start = new Date(startDateStr);
   const end = new Date(endDateStr);
@@ -146,6 +132,7 @@ function KpiStatCard({
   icon: ReactNode;
   onClick?: () => void;
 }) {
+  const safeValue = typeof value === "number" && Number.isFinite(value) ? value : 0;
   return (
     <Box
       className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md"
@@ -169,7 +156,7 @@ function KpiStatCard({
           {icon}
         </Box>
       </Box>
-      <Typography className="text-3xl font-bold leading-none text-slate-900">{value}</Typography>
+      <Typography className="text-3xl font-bold leading-none text-slate-900">{safeValue}</Typography>
     </Box>
   );
 }
@@ -511,13 +498,14 @@ export default function DashboardClient() {
     getNextPageParam: (lastPage, allPages) => {
       const lp = normalizeTasksPageResponse(lastPage);
       if (!Array.isArray(lp.items) || typeof lp.total !== "number") return undefined;
-      const loaded = allPages.reduce((sum, p) => sum + normalizeTasksPageResponse(p).items.length, 0);
+      const pagesSoFar = Array.isArray(allPages) ? allPages : [];
+      const loaded = pagesSoFar.reduce((sum, p) => sum + normalizeTasksPageResponse(p).items.length, 0);
       if (loaded >= lp.total) return undefined;
       return loaded;
     },
     select: (data) => ({
       ...data,
-      pages: data.pages.map((p) => normalizeTasksPageResponse(p)),
+      pages: Array.isArray(data?.pages) ? data.pages.map((p) => normalizeTasksPageResponse(p)) : [],
     }),
     placeholderData: keepPreviousData,
     refetchOnWindowFocus: false,
@@ -772,13 +760,18 @@ export default function DashboardClient() {
     if (!Array.isArray(pages)) return [];
     return asTaskArray(flattenTaskPages(pages));
   }, [tasksInfinite.data]);
+
+  useEffect(() => {
+    console.log("Dashboard mount - tasks state:", tasks);
+  }, [tasks]);
+
   const filteredTasksTotal = useMemo(() => {
     const p0 = tasksInfinite.data?.pages?.[0];
     if (p0 === undefined) return tasks.length;
     return normalizeTasksPageResponse(p0).total;
   }, [tasksInfinite.data?.pages, tasks.length]);
-  const members = useMemo(() => membersQuery.data ?? [], [membersQuery.data]);
-  const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data]);
+  const members = useMemo(() => safeArray<Member>(membersQuery.data), [membersQuery.data]);
+  const projects = useMemo(() => safeArray<Project>(projectsQuery.data), [projectsQuery.data]);
 
   const projectById = useMemo(() => {
     const m = new Map<string, Project>();
@@ -830,8 +823,9 @@ export default function DashboardClient() {
   );
 
   const filteredMembers = useMemo(() => {
+    const base = safeArray<Member>(members);
     const q = memberSearch.trim().toLowerCase();
-    return members
+    return base
       .filter((item) => (selectedTeam === "all" ? true : item.team === selectedTeam))
       .filter((item) => (selectedMemberId === "all" ? true : item.id === selectedMemberId))
       .filter((item) => {
@@ -842,8 +836,9 @@ export default function DashboardClient() {
   }, [members, selectedTeam, selectedMemberId, memberSearch]);
 
   const filteredProjects = useMemo(() => {
+    const base = safeArray<Project>(projects);
     const q = projectSearch.trim().toLowerCase();
-    return projects.filter((p) => {
+    return base.filter((p) => {
       if (!q) return true;
       return (
         p.name.toLowerCase().includes(q) ||
@@ -855,11 +850,12 @@ export default function DashboardClient() {
   }, [projects, projectSearch]);
   const filteredTasks = useMemo(() => {
     const taskList = asTaskArray(tasks);
+    const memberList = safeArray<Member>(members);
     // Build set of member IDs that match current team filter
     const teamMemberIds =
       selectedTeam === "all"
         ? null
-        : new Set(members.filter((m) => m.team === selectedTeam).map((m) => m.id));
+        : new Set(memberList.filter((m) => m.team === selectedTeam).map((m) => m.id));
 
     return taskList.filter((item) => {
       // Team filter: check via member
@@ -883,10 +879,11 @@ export default function DashboardClient() {
    */
   const tasksForDashboardKpis = useMemo(() => {
     const list = asTaskArray(tasksAllFlatQuery.data);
+    const memberList = safeArray<Member>(members);
     const teamMemberIds =
       selectedTeam === "all"
         ? null
-        : new Set(members.filter((m) => m.team === selectedTeam).map((m) => m.id));
+        : new Set(memberList.filter((m) => m.team === selectedTeam).map((m) => m.id));
 
     return list.filter((item) => {
       if (teamMemberIds && !teamMemberIds.has(item.assigneeMemberId)) return false;
@@ -901,7 +898,8 @@ export default function DashboardClient() {
     const cache = taskRowObjectCache;
     const out: TaskTableRow[] = [];
     const seen = new Set<string>();
-    for (const task of filteredTasks) {
+    const rowsIn = asTaskArray(filteredTasks);
+    for (const task of rowsIn) {
       if (!task?.id) continue;
       seen.add(task.id);
       const project = projectById.get(task.projectId);
@@ -980,15 +978,18 @@ export default function DashboardClient() {
   );
 
   const summary = useMemo(() => {
+    const kpiTasks = asTaskArray(tasksForDashboardKpis);
+    const projList = safeArray<Project>(projects);
+    const membersForSummary = safeArray<Member>(filteredMembers);
     const today = mounted ? new Date() : null;
-    const openTasks = tasksForDashboardKpis.filter((task) => !(task.completedAt || task.progress === 100));
-    const overdueTasks = today ? tasksForDashboardKpis.filter((task) => isTaskOverdue(task, today)).length : 0;
+    const openTasks = kpiTasks.filter((task) => !(task.completedAt || task.progress === 100));
+    const overdueTasks = today ? kpiTasks.filter((task) => isTaskOverdue(task, today)).length : 0;
     const activeProjects =
       selectedProjectId === "all"
-        ? projects.filter((project) => project.status === "active").length
-        : projects.filter((project) => project.id === selectedProjectId && project.status === "active").length;
+        ? projList.filter((project) => project.status === "active").length
+        : projList.filter((project) => project.id === selectedProjectId && project.status === "active").length;
     return {
-      activeMembers: filteredMembers.filter((member) => member.status === "active").length,
+      activeMembers: membersForSummary.filter((member) => member.status === "active").length,
       activeProjects,
       openTasks: openTasks.length,
       overdueTasks,
@@ -996,8 +997,9 @@ export default function DashboardClient() {
   }, [filteredMembers, tasksForDashboardKpis, projects, selectedProjectId, mounted]);
 
   const delayTrendData = useMemo(() => {
+    const ft = asTaskArray(filteredTasks);
     const monthMap = new Map<string, { delayedTasks: number; totalDelay: number; count: number }>();
-    for (const task of filteredTasks) {
+    for (const task of ft) {
       if (!task.completedAt) continue;
       const period = task.completedAt.slice(0, 7);
       const due = new Date(task.dueDate).getTime();
@@ -1021,14 +1023,16 @@ export default function DashboardClient() {
   const performanceChartData = useMemo(() => {
     const now = mounted ? new Date() : null;
     const overdueByMember = new Map<string, number>();
+    const ft = asTaskArray(filteredTasks);
+    const fm = safeArray<Member>(filteredMembers);
     if (now) {
-      for (const task of filteredTasks) {
+      for (const task of ft) {
         const aid = task.assigneeMemberId;
         if (!aid || !isTaskOverdue(task, now)) continue;
         overdueByMember.set(aid, (overdueByMember.get(aid) ?? 0) + 1);
       }
     }
-    return filteredMembers.map((member) => {
+    return fm.map((member) => {
       const overdueCount = overdueByMember.get(member.id) ?? 0;
       const score = Math.max(0, 100 - overdueCount);
       return {
@@ -1040,10 +1044,12 @@ export default function DashboardClient() {
   }, [filteredMembers, filteredTasks, mounted]);
   const workloadByMember = useMemo(() => {
     const map = new Map<string, number>();
-    for (const item of filteredTasks) {
+    const ft = asTaskArray(filteredTasks);
+    const mems = safeArray<Member>(members);
+    for (const item of ft) {
       map.set(item.assigneeMemberId, (map.get(item.assigneeMemberId) ?? 0) + 1);
     }
-    return members.map((member) => ({ name: member.fullName, tasks: map.get(member.id) ?? 0 }));
+    return mems.map((member) => ({ name: member.fullName, tasks: map.get(member.id) ?? 0 }));
   }, [members, filteredTasks]);
   const memberChartInnerHeight = useMemo(() => Math.max(420, members.length * 28), [members.length]);
   const memberChartCardHeight = memberChartInnerHeight + 90;

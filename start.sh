@@ -142,26 +142,40 @@ fi
 echo_step "6. Khởi động Frontend (Next.js dev server)"
 
 cd "$FRONTEND_DIR"
-nohup npm run dev > "$SCRIPT_DIR/logs/frontend.log" 2>&1 &
+# Cố định cổng sau khi đã kill 3000 ở bước 1 — tránh Next tự đổi (3004…) khiến bước kiểm tra HTTP bị miss.
+PORT=3000 nohup npm run dev > "$SCRIPT_DIR/logs/frontend.log" 2>&1 &
 FRONTEND_PID=$!
 echo $FRONTEND_PID > "$SCRIPT_DIR/logs/frontend.pid"
 echo_ok "Frontend PID: $FRONTEND_PID"
 
-# Wait for frontend to start
-sleep 5
-
-# Check if port 3000 or 3001 is being used (Next.js might pick a different port)
-for port in 3000 3001 3002; do
-  STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:$port 2>/dev/null || echo "000")
-  if [ "$STATUS" = "200" ]; then
-    FRONTEND_PORT=$port
-    echo_ok "Frontend chạy thành công trên http://localhost:$port"
-    break
+# Next.js dev (nhất là Turbopack) lần đầu thường cần >5s để compile — thử lặp thay vì kiểm tra một lần.
+echo "  Đang đợi Next.js phản hồi (có thể 30–90 giây lần đầu sau khi xóa .next)..."
+FRONTEND_PORT=""
+attempt=0
+max_attempts=30
+while [ $attempt -lt $max_attempts ] && [ -z "$FRONTEND_PORT" ]; do
+  attempt=$((attempt + 1))
+  # PORT=3000 đã set ở trên; nếu vẫn bị chiếm, Next có thể nhảy 3001…
+  for port in 3000 3001 3002 3003 3004 3005 3006 3007 3008 3009 3010; do
+    STATUS=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 2 "http://127.0.0.1:$port/" 2>/dev/null || echo "000")
+    case "$STATUS" in
+      2??|3??)
+        FRONTEND_PORT=$port
+        echo_ok "Frontend chạy thành công trên http://localhost:$port (HTTP $STATUS)"
+        break 2
+        ;;
+    esac
+  done
+  if [ -z "$FRONTEND_PORT" ]; then
+    if [ $((attempt % 5)) -eq 0 ] || [ "$attempt" -eq 1 ]; then
+      echo "  ... vẫn đợi ($attempt/$max_attempts, mỗi 3s thử lại)"
+    fi
+    sleep 3
   fi
 done
 
 if [ -z "$FRONTEND_PORT" ]; then
-  echo_err "Frontend KHÔNG phản hồi - xem logs/frontend.log"
+  echo_err "Frontend KHÔNG phản hồi sau $((max_attempts * 3))s — xem logs/frontend.log"
   cat "$SCRIPT_DIR/logs/frontend.log"
   exit 1
 fi
