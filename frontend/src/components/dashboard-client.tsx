@@ -466,15 +466,17 @@ export default function DashboardClient() {
   taskDrawerOpenRef.current = taskDrawerOpen;
   activeTaskCellRef.current = activeTaskCell;
 
-  const membersQuery = useQuery<Member[]>({
+  const membersQuery = useQuery({
     queryKey: ["members"],
     queryFn: getMembers,
+    select: (data: unknown) => safeArray<Member>(data),
     placeholderData: keepPreviousData,
     refetchOnWindowFocus: false,
   });
-  const projectsQuery = useQuery<Project[]>({
+  const projectsQuery = useQuery({
     queryKey: ["projects"],
     queryFn: getProjects,
+    select: (data: unknown) => safeArray<Project>(data),
     placeholderData: keepPreviousData,
     refetchOnWindowFocus: false,
   });
@@ -509,7 +511,7 @@ export default function DashboardClient() {
     }),
     placeholderData: keepPreviousData,
     refetchOnWindowFocus: false,
-    structuralSharing: true,
+    structuralSharing: false,
   });
   /** Full unfiltered list for KPI cards (chunked HTTP via fetchAllTaskPages). */
   const tasksAllFlatQuery = useQuery({
@@ -521,7 +523,7 @@ export default function DashboardClient() {
     select: (data: unknown) => asTaskArray(data),
     placeholderData: keepPreviousData,
     refetchOnWindowFocus: false,
-    structuralSharing: true,
+    structuralSharing: false,
   });
 
   /** Load remaining pages in the background so charts and filters see the full server-side filtered set. */
@@ -762,7 +764,9 @@ export default function DashboardClient() {
   }, [tasksInfinite.data]);
 
   useEffect(() => {
-    console.log("Dashboard mount - tasks state:", tasks);
+    if (process.env.NODE_ENV === "development") {
+      console.log("Dashboard mount - tasks state:", tasks);
+    }
   }, [tasks]);
 
   const filteredTasksTotal = useMemo(() => {
@@ -879,13 +883,14 @@ export default function DashboardClient() {
    */
   const tasksForDashboardKpis = useMemo(() => {
     const list = asTaskArray(tasksAllFlatQuery.data);
+    const rows = Array.isArray(list) ? list : [];
     const memberList = safeArray<Member>(members);
     const teamMemberIds =
       selectedTeam === "all"
         ? null
         : new Set(memberList.filter((m) => m.team === selectedTeam).map((m) => m.id));
 
-    return list.filter((item) => {
+    return rows.filter((item) => {
       if (teamMemberIds && !teamMemberIds.has(item.assigneeMemberId)) return false;
       if (dateFrom && item.dueDate < dateFrom) return false;
       if (dateTo && item.dueDate > dateTo) return false;
@@ -979,11 +984,12 @@ export default function DashboardClient() {
 
   const summary = useMemo(() => {
     const kpiTasks = asTaskArray(tasksForDashboardKpis);
+    const kpiRows = Array.isArray(kpiTasks) ? kpiTasks : [];
     const projList = safeArray<Project>(projects);
     const membersForSummary = safeArray<Member>(filteredMembers);
     const today = mounted ? new Date() : null;
-    const openTasks = kpiTasks.filter((task) => !(task.completedAt || task.progress === 100));
-    const overdueTasks = today ? kpiTasks.filter((task) => isTaskOverdue(task, today)).length : 0;
+    const openTasks = kpiRows.filter((task) => !(task.completedAt || task.progress === 100));
+    const overdueTasks = today ? kpiRows.filter((task) => isTaskOverdue(task, today)).length : 0;
     const activeProjects =
       selectedProjectId === "all"
         ? projList.filter((project) => project.status === "active").length
@@ -1059,8 +1065,8 @@ export default function DashboardClient() {
       <Container suppressHydrationWarning sx={{ py: 4 }}>
         <Typography color="error" component="div" sx={{ whiteSpace: "pre-wrap" }}>
           {`Failed to load data. Current API base: ${publicApiBaseUrl}
-If using localhost: start backend on port 4000.
-If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL (e.g. https://...onrender.com) and redeploy. On Render, ALLOWED_ORIGIN must match your browser origin (e.g. https://your-app.vercel.app).`}
+If using localhost: start backend on port 4000, or set NEXT_PUBLIC_USE_API_PROXY=true and BACKEND_PROXY_TARGET to your Render URL (see frontend/.env.example).
+If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL and redeploy. On Render, ALLOWED_ORIGIN must include your browser origin (Vercel + http://localhost:3000 for dev).`}
         </Typography>
       </Container>
     );
@@ -1450,7 +1456,11 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL (e.g. https
                         Performance Score by Member
                       </Typography>
                       <ResponsiveContainer width="100%" height={memberChartInnerHeight}>
-                        <BarChart layout="vertical" data={performanceChartData} margin={{ top: 8, right: 24, left: 180, bottom: 8 }}>
+                        <BarChart
+                          layout="vertical"
+                          data={safeArray<Record<string, unknown>>(performanceChartData)}
+                          margin={{ top: 8, right: 24, left: 180, bottom: 8 }}
+                        >
                           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                           <XAxis type="number" tick={{ fill: "#64748b", fontSize: 12 }} axisLine={{ stroke: "#e2e8f0" }} tickLine={{ stroke: "#e2e8f0" }} />
                           <YAxis type="category" dataKey="name" width={165} tick={{ fontSize: 12, fill: "#475569" }} axisLine={false} tickLine={false} />
@@ -1469,7 +1479,11 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL (e.g. https
                         Workload by Member
                       </Typography>
                       <ResponsiveContainer width="100%" height={memberChartInnerHeight}>
-                        <BarChart layout="vertical" data={workloadByMember} margin={{ top: 8, right: 24, left: 180, bottom: 8 }}>
+                        <BarChart
+                          layout="vertical"
+                          data={safeArray<Record<string, unknown>>(workloadByMember)}
+                          margin={{ top: 8, right: 24, left: 180, bottom: 8 }}
+                        >
                           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                           <XAxis type="number" tick={{ fill: "#64748b", fontSize: 12 }} axisLine={{ stroke: "#e2e8f0" }} tickLine={{ stroke: "#e2e8f0" }} />
                           <YAxis type="category" dataKey="name" width={165} tick={{ fontSize: 12, fill: "#475569" }} axisLine={false} tickLine={false} />

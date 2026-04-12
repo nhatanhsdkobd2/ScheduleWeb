@@ -6,9 +6,9 @@
 - Local:         http://localhost:3000
 - Network:       http://192.168.100.70:3000
 - Environments: .env.local
-✓ Ready in 343ms
+✓ Ready in 363ms
 ⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
 
 ○ Compiling / ...
- GET / 200 in 6.0s (next.js: 5.5s, application-code: 488ms)
- GET / 200 in 101ms (next.js: 8ms, application-code: 94ms)
+ GET / 200 in 6.1s (next.js: 5.6s, application-code: 500ms)
+ GET / 200 in 119ms (next.js: 19ms, application-code: 99ms)

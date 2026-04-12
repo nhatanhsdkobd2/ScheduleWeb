@@ -12,8 +12,9 @@ export default function DataTable<TData>({
   data: TData[];
   minTableWidth?: number;
 }) {
+  const rows = Array.isArray(data) ? data : [];
   const table = useReactTable({
-    data,
+    data: rows,
     columns,
     getCoreRowModel: getCoreRowModel(),
   });

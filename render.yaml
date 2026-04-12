@@ -1,4 +1,5 @@
-# Render Blueprint — Web service for `backend/`. Set DATABASE_URL, ALLOWED_ORIGIN (Vercel URL(s)), NODE_ENV=production in the dashboard.
+# Render Blueprint — Web service for `backend/`. Set DATABASE_URL in the dashboard if not synced here.
+# ALLOWED_ORIGIN: comma-separated; include Vercel app + http://localhost:3000 for local dev against production API.
 # https://render.com/docs/blueprint-spec
 services:
   - type: web
@@ -8,3 +9,8 @@ services:
     buildCommand: npm ci && npm run build && npm run db:migrate
     startCommand: npm start
     healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ALLOWED_ORIGIN
+        value: https://schedule-web2.vercel.app,http://localhost:3000

@@ -20,13 +20,22 @@ export interface DashboardPayload {
   performance: PerformanceItem[];
 }
 
-/** Base URL for API (set NEXT_PUBLIC_API_BASE_URL on Vercel; baked in at build time). */
-export const publicApiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
-const API_BASE = publicApiBaseUrl;
+/**
+ * Real backend origin (Socket.IO, error text). Set NEXT_PUBLIC_API_BASE_URL (e.g. Render URL).
+ * JSON `fetch` uses `API_FETCH_BASE` instead when NEXT_PUBLIC_USE_API_PROXY is true (see next.config).
+ */
+const backendOrigin = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000").replace(/\/$/, "");
+export const publicApiBaseUrl = backendOrigin;
+
+const useApiProxy =
+  process.env.NEXT_PUBLIC_USE_API_PROXY === "true" || process.env.NEXT_PUBLIC_USE_API_PROXY === "1";
+
+/** Browser calls same-origin `/api/proxy/...` → Next rewrites to backend (avoids CORS on localhost dev). */
+const API_FETCH_BASE = useApiProxy ? "/api/proxy" : backendOrigin;
 
 export async function getDashboardData(): Promise<DashboardPayload> {
   try {
-    const response = await fetch(`${API_BASE}/analytics/dashboard`, { cache: "no-store" });
+    const response = await fetch(`${API_FETCH_BASE}/analytics/dashboard`, { cache: "no-store" });
     if (!response.ok) throw new Error("Failed to load dashboard data");
     return (await response.json()) as DashboardPayload;
   } catch (err) {
@@ -37,7 +46,7 @@ export async function getDashboardData(): Promise<DashboardPayload> {
 
 export async function getWeeklyReportRows(): Promise<WeeklyReportRow[]> {
   try {
-    const response = await fetch(`${API_BASE}/reports/weekly`, { cache: "no-store" });
+    const response = await fetch(`${API_FETCH_BASE}/reports/weekly`, { cache: "no-store" });
     if (!response.ok) throw new Error("Failed to load report rows");
     const payload = (await response.json()) as { rows: WeeklyReportRow[] };
     return payload.rows;
@@ -61,16 +70,27 @@ export interface TaskFilters {
 
 export type TasksPageResponse = { items: Task[]; total: number };
 
+/** Unwrap common API envelopes (`{ data: ... }`, `{ results: ... }`) a few levels deep. */
+function unwrapEnvelope(value: unknown, depth = 0): unknown {
+  if (depth > 4 || value == null || typeof value !== "object") return value;
+  if (Array.isArray(value)) return value;
+  const o = value as Record<string, unknown>;
+  if ("data" in o && o.data !== undefined) return unwrapEnvelope(o.data, depth + 1);
+  if ("results" in o && o.results !== undefined) return unwrapEnvelope(o.results, depth + 1);
+  return value;
+}
+
 /**
  * Coerce `Task[]`, legacy `{ items, total }` paginated bodies, or mistaken React Query cache values
  * into a plain `Task[]` (e.g. when `/tasks` shape was stored where a flat array was expected).
  */
 export function asTaskArray(value: unknown): Task[] {
-  if (Array.isArray(value)) {
-    return (value as Task[]).filter((t) => t != null && String((t as Task).id ?? "").length > 0);
+  const v = unwrapEnvelope(value);
+  if (Array.isArray(v)) {
+    return (v as Task[]).filter((t) => t != null && String((t as Task).id ?? "").length > 0);
   }
-  if (value && typeof value === "object" && "items" in (value as object)) {
-    const items = (value as TasksPageResponse).items;
+  if (v && typeof v === "object" && "items" in (v as object)) {
+    const items = (v as TasksPageResponse).items;
     if (Array.isArray(items)) {
       return items.filter((t) => t != null && String(t.id ?? "").length > 0);
     }
@@ -92,12 +112,13 @@ function coerceTotal(value: unknown, fallback: number): number {
  * (e.g. `items` missing, `total` as string). Always returns a real array for `items`.
  */
 export function normalizeTasksPageResponse(raw: unknown): TasksPageResponse {
-  if (Array.isArray(raw)) {
-    const items = raw as Task[];
+  const rawUnwrapped = unwrapEnvelope(raw);
+  if (Array.isArray(rawUnwrapped)) {
+    const items = rawUnwrapped as Task[];
     return { items, total: items.length };
   }
-  if (raw && typeof raw === "object") {
-    const o = raw as Record<string, unknown>;
+  if (rawUnwrapped && typeof rawUnwrapped === "object") {
+    const o = rawUnwrapped as Record<string, unknown>;
     const itemsRaw = o.items;
     const items = Array.isArray(itemsRaw) ? (itemsRaw as Task[]) : [];
     const total = coerceTotal(o.total, items.length);
@@ -111,9 +132,10 @@ export function normalizeTasksPageResponse(raw: unknown): TasksPageResponse {
  * Prevents `.filter` / `.map` on non-arrays when the API or cache shape is wrong.
  */
 export function safeArray<T>(value: unknown): T[] {
-  if (Array.isArray(value)) return value as T[];
-  if (value && typeof value === "object" && "items" in value) {
-    const items = (value as { items?: unknown }).items;
+  const v = unwrapEnvelope(value);
+  if (Array.isArray(v)) return v as T[];
+  if (v && typeof v === "object" && "items" in v) {
+    const items = (v as { items?: unknown }).items;
     if (Array.isArray(items)) return items as T[];
   }
   return [];
@@ -151,7 +173,7 @@ export async function fetchTasksPage(filters: TaskFilters, offset: number): Prom
   params.set("limit", String(TASK_PAGE_SIZE));
   params.set("offset", String(offset));
   const query = params.toString();
-  const url = `${API_BASE}/tasks?${query}`;
+  const url = `${API_FETCH_BASE}/tasks?${query}`;
   const raw = await requestJson<unknown>(url);
   return normalizeTasksPageResponse(raw);
 }
@@ -189,7 +211,7 @@ async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
     response = await fetch(url, init);
   } catch {
     throw new Error(
-      `Cannot connect to backend at ${API_BASE}. Local: start backend on port 4000. Production: verify NEXT_PUBLIC_API_BASE_URL on Vercel and redeploy; on Render set ALLOWED_ORIGIN to your site URL.`,
+      `Cannot connect to backend at ${backendOrigin}. Local: start backend on port 4000 or set NEXT_PUBLIC_USE_API_PROXY=true. Production: set NEXT_PUBLIC_API_BASE_URL; on Render set ALLOWED_ORIGIN to include your frontend origin(s).`,
     );
   }
 
@@ -218,11 +240,12 @@ const roleHeaders = (role: "admin" | "pm" | "lead" | "member" = "lead"): Headers
 });
 
 export async function getMembers(): Promise<Member[]> {
-  return requestJson<Member[]>(`${API_BASE}/members`);
+  const raw = await requestJson<unknown>(`${API_FETCH_BASE}/members`);
+  return safeArray<Member>(raw);
 }
 
 export async function createMember(payload: Omit<Member, "id" | "memberCode">): Promise<Member> {
-  return requestJson<Member>(`${API_BASE}/members`, {
+  return requestJson<Member>(`${API_FETCH_BASE}/members`, {
     method: "POST",
     headers: roleHeaders(),
     body: JSON.stringify(payload),
@@ -230,7 +253,7 @@ export async function createMember(payload: Omit<Member, "id" | "memberCode">): 
 }
 
 export async function updateMember(id: string, payload: Partial<Omit<Member, "id">>): Promise<Member> {
-  return requestJson<Member>(`${API_BASE}/members/${id}`, {
+  return requestJson<Member>(`${API_FETCH_BASE}/members/${id}`, {
     method: "PATCH",
     headers: roleHeaders(),
     body: JSON.stringify(payload),
@@ -238,24 +261,25 @@ export async function updateMember(id: string, payload: Partial<Omit<Member, "id
 }
 
 export async function deleteMember(id: string): Promise<void> {
-  await requestJson<{ status: string }>(`${API_BASE}/members/${id}`, {
+  await requestJson<{ status: string }>(`${API_FETCH_BASE}/members/${id}`, {
     method: "DELETE",
     headers: roleHeaders(),
   });
 }
 
 export async function getProjects(): Promise<Project[]> {
-  return requestJson<Project[]>(`${API_BASE}/projects`);
+  const raw = await requestJson<unknown>(`${API_FETCH_BASE}/projects`);
+  return safeArray<Project>(raw);
 }
 
 export async function getProjectMembers(projectId: string): Promise<ProjectMemberAssignment[]> {
-  return requestJson<ProjectMemberAssignment[]>(`${API_BASE}/projects/${projectId}/members`);
+  return requestJson<ProjectMemberAssignment[]>(`${API_FETCH_BASE}/projects/${projectId}/members`);
 }
 
 export async function createProject(
   payload: Omit<Project, "id" | "projectCode">,
 ): Promise<Project> {
-  return requestJson<Project>(`${API_BASE}/projects`, {
+  return requestJson<Project>(`${API_FETCH_BASE}/projects`, {
     method: "POST",
     headers: roleHeaders(),
     body: JSON.stringify(payload),
@@ -263,14 +287,14 @@ export async function createProject(
 }
 
 export async function deleteProject(id: string): Promise<void> {
-  await requestJson<{ status: string }>(`${API_BASE}/projects/${id}`, {
+  await requestJson<{ status: string }>(`${API_FETCH_BASE}/projects/${id}`, {
     method: "DELETE",
     headers: roleHeaders(),
   });
 }
 
 export async function updateProject(id: string, payload: Partial<Omit<Project, "id">>): Promise<Project> {
-  return requestJson<Project>(`${API_BASE}/projects/${id}`, {
+  return requestJson<Project>(`${API_FETCH_BASE}/projects/${id}`, {
     method: "PATCH",
     headers: roleHeaders(),
     body: JSON.stringify(payload),
@@ -281,7 +305,7 @@ export async function assignProjectMember(
   projectId: string,
   payload: { memberId: string; assignmentRole: "owner" | "lead" | "contributor"; allocationPercent: number },
 ): Promise<ProjectMemberAssignment> {
-  return requestJson<ProjectMemberAssignment>(`${API_BASE}/projects/${projectId}/members`, {
+  return requestJson<ProjectMemberAssignment>(`${API_FETCH_BASE}/projects/${projectId}/members`, {
     method: "POST",
     headers: roleHeaders(),
     body: JSON.stringify(payload),
@@ -289,14 +313,14 @@ export async function assignProjectMember(
 }
 
 export async function removeProjectMember(projectId: string, memberId: string): Promise<void> {
-  await requestJson<{ status: string }>(`${API_BASE}/projects/${projectId}/members/${memberId}`, {
+  await requestJson<{ status: string }>(`${API_FETCH_BASE}/projects/${projectId}/members/${memberId}`, {
     method: "DELETE",
     headers: roleHeaders(),
   });
 }
 
 export async function createTask(payload: Omit<Task, "id" | "status" | "taskCode">): Promise<Task> {
-  return requestJson<Task>(`${API_BASE}/tasks`, {
+  return requestJson<Task>(`${API_FETCH_BASE}/tasks`, {
     method: "POST",
     headers: roleHeaders(),
     body: JSON.stringify(payload),
@@ -304,7 +328,7 @@ export async function createTask(payload: Omit<Task, "id" | "status" | "taskCode
 }
 
 export async function updateTask(id: string, payload: Partial<Omit<Task, "id">>): Promise<Task> {
-  return requestJson<Task>(`${API_BASE}/tasks/${id}`, {
+  return requestJson<Task>(`${API_FETCH_BASE}/tasks/${id}`, {
     method: "PATCH",
     headers: roleHeaders(),
     body: JSON.stringify(payload),
@@ -312,5 +336,5 @@ export async function updateTask(id: string, payload: Partial<Omit<Task, "id">>)
 }
 
 export async function getTaskHistory(taskId: string): Promise<TaskHistoryItem[]> {
-  return requestJson<TaskHistoryItem[]>(`${API_BASE}/tasks/${taskId}/history`);
+  return requestJson<TaskHistoryItem[]>(`${API_FETCH_BASE}/tasks/${taskId}/history`);
 }
