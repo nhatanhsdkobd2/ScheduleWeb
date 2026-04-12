@@ -17,6 +17,7 @@ import { getPool, isPersistenceEnabled } from "./db/index.js";
 import {
   insertTaskIntoDb,
   listTasksFromDb,
+  type TaskPageResult,
   persistTasksFromMemory,
   selectAllTasksForAnalyticsFromDb,
   selectTaskByIdFromDb,
@@ -37,7 +38,7 @@ import {
   selectProjectByIdFromDb,
 } from "./db/member-project-store.js";
 
-export type { TaskListFilters } from "./db/task-store.js";
+export type { TaskListFilters, TaskPageResult } from "./db/task-store.js";
 
 export const members: Member[] = [];
 export const projects: Project[] = [];
@@ -789,9 +790,12 @@ export async function updateProject(id: string, patch: Partial<Omit<Project, "id
   return project;
 }
 
-export async function getTasks(filters: TaskListFilters): Promise<Task[]> {
+export async function getTasks(
+  filters: TaskListFilters,
+  pagination?: { limit: number; offset: number },
+): Promise<TaskPageResult> {
   if (isPersistenceEnabled()) {
-    return listTasksFromDb(filters);
+    return listTasksFromDb(filters, pagination);
   }
   const projectId = filters.projectId;
   const memberId = filters.memberId;
@@ -799,7 +803,7 @@ export async function getTasks(filters: TaskListFilters): Promise<Task[]> {
   const search = filters.search?.toLowerCase();
   const dateFrom = filters.dateFrom;
   const dateTo = filters.dateTo;
-  return tasks
+  const all = tasks
     .filter((item) => !item.deletedAt)
     .filter((item) => (projectId ? item.projectId === projectId : true))
     .filter((item) => (memberId ? item.assigneeMemberId === memberId : true))
@@ -811,6 +815,15 @@ export async function getTasks(filters: TaskListFilters): Promise<Task[]> {
       const p = projects.find((pr) => pr.id === item.projectId);
       return { ...item, projectName: p?.name };
     });
+  const total = all.length;
+  if (!pagination) {
+    return { items: all, total };
+  }
+  const { limit, offset } = pagination;
+  return {
+    items: all.slice(offset, offset + limit),
+    total,
+  };
 }
 
 async function allActiveTasks(): Promise<Task[]> {

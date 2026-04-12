@@ -1,6 +1,6 @@
 "use client";
 
-import { Box, MenuItem, TextField, Tooltip as MuiTooltip, Typography } from "@mui/material";
+import { Box, MenuItem, TextField, Tooltip as MuiTooltip, Typography, useTheme } from "@mui/material";
 import type { ColumnDef } from "@tanstack/react-table";
 import { format } from "date-fns";
 import type { Task } from "@shared/types/domain";
@@ -11,6 +11,101 @@ import { isTaskOverdue, toDayStart, isWeekendDate } from "@/components/task-tabl
 
 function meta(table: { options: { meta?: unknown } }): TaskTableMeta {
   return table.options.meta as TaskTableMeta;
+}
+
+/** Matches prior grid: 11px cells, ~2px gap (MUI spacing 0.25). */
+const TL_CELL = 11;
+const TL_GAP = 2;
+const tlPitch = (): number => TL_CELL + TL_GAP;
+const tlWidth = (dayCount: number): number => dayCount * TL_CELL + Math.max(0, dayCount - 1) * TL_GAP;
+
+function TaskTimelineMonthHeader({ timelineMonthDays }: { timelineMonthDays: Date[] }) {
+  const theme = useTheme();
+  const pitch = tlPitch();
+  const w = tlWidth(timelineMonthDays.length);
+  const h = TL_CELL;
+  return (
+    <svg width={w} height={h} style={{ display: "block", marginTop: 4 }}>
+      {timelineMonthDays.map((d, i) => {
+        const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+        const x = i * pitch;
+        return (
+          <g key={`h-${d.toISOString().slice(0, 10)}`}>
+            <rect
+              x={x}
+              y={0}
+              width={TL_CELL}
+              height={h}
+              rx={2}
+              fill={isWeekend ? "rgba(244,67,54,0.08)" : "#ffffff"}
+              stroke={theme.palette.grey[300]}
+              strokeWidth={1}
+            />
+            <text
+              x={x + TL_CELL / 2}
+              y={8}
+              textAnchor="middle"
+              fontSize={8}
+              fill={isWeekend ? theme.palette.error.light : theme.palette.text.secondary}
+            >
+              {d.getDate()}
+            </text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+function TaskTimelineRowSvgCell({ rowOriginal, days }: { rowOriginal: TaskTableRow; days: Date[] }) {
+  const theme = useTheme();
+  const start = toDayStart(rowOriginal.raw.plannedStartDate ?? rowOriginal.raw.dueDate);
+  const end = toDayStart(rowOriginal.raw.dueDate);
+  if (!start || !end || days.length === 0) {
+    return (
+      <Typography variant="body2" color="text.disabled">
+        —
+      </Typography>
+    );
+  }
+
+  const startMs = start.getTime();
+  const endMs = end.getTime();
+  const rangeStart = Math.min(startMs, endMs);
+  const rangeEnd = Math.max(startMs, endMs);
+  const invalidRange = endMs < startMs;
+
+  const pitch = tlPitch();
+  const w = tlWidth(days.length);
+  const h = TL_CELL;
+  const border = theme.palette.grey[300];
+  const fillDone = invalidRange ? theme.palette.error.light : "rgba(66, 133, 244, 0.82)";
+  return (
+    <Box sx={{ minWidth: 360, py: 0.5 }}>
+      <svg width={w} height={h} style={{ display: "block" }}>
+        {days.map((d, i) => {
+          const dayTs = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+          const weekend = isWeekendDate(d);
+          const inRange = dayTs >= rangeStart && dayTs <= rangeEnd;
+          const filled = inRange && !weekend;
+          const x = i * pitch;
+          return (
+            <rect
+              key={`${rowOriginal.id}-${d.toISOString().slice(0, 10)}`}
+              x={x}
+              y={0}
+              width={TL_CELL}
+              height={h}
+              rx={2}
+              fill={filled ? fillDone : "transparent"}
+              stroke={border}
+              strokeWidth={1}
+            />
+          );
+        })}
+      </svg>
+    </Box>
+  );
 }
 
 export function createTaskColumns(timelineMonthDays: Date[]): ColumnDef<TaskTableRow>[] {
@@ -278,76 +373,10 @@ export function createTaskColumns(timelineMonthDays: Date[]): ColumnDef<TaskTabl
           <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 700 }}>
             {timelineMonthDays[0] ? format(timelineMonthDays[0], "MMM yyyy") : "Timeline"}
           </Typography>
-          <Box sx={{ display: "grid", gridTemplateColumns: `repeat(${timelineMonthDays.length}, 11px)`, gap: 0.25, mt: 0.5 }}>
-            {timelineMonthDays.map((d) => {
-              const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-              return (
-                <Box
-                  key={`h-${d.toISOString().slice(0, 10)}`}
-                  sx={{
-                    width: 11,
-                    height: 11,
-                    borderRadius: 0.5,
-                    border: "1px solid",
-                    borderColor: "grey.300",
-                    bgcolor: isWeekend ? "rgba(244,67,54,0.08)" : "white",
-                    fontSize: 8,
-                    lineHeight: "11px",
-                    textAlign: "center",
-                    color: isWeekend ? "error.light" : "text.secondary",
-                  }}
-                >
-                  {d.getDate()}
-                </Box>
-              );
-            })}
-          </Box>
+          <TaskTimelineMonthHeader timelineMonthDays={timelineMonthDays} />
         </Box>
       ),
-      cell: ({ row }) => {
-        const days = timelineMonthDays;
-        const start = toDayStart(row.original.raw.plannedStartDate ?? row.original.raw.dueDate);
-        const end = toDayStart(row.original.raw.dueDate);
-        if (!start || !end || days.length === 0) {
-          return (
-            <Typography variant="body2" color="text.disabled">
-              —
-            </Typography>
-          );
-        }
-
-        const startMs = start.getTime();
-        const endMs = end.getTime();
-        const rangeStart = Math.min(startMs, endMs);
-        const rangeEnd = Math.max(startMs, endMs);
-        const invalidRange = endMs < startMs;
-
-        return (
-          <Box sx={{ minWidth: 360, py: 0.5 }}>
-            <Box sx={{ display: "grid", gridTemplateColumns: `repeat(${days.length}, 11px)`, gap: 0.25 }}>
-              {days.map((d) => {
-                const dayTs = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-                const weekend = isWeekendDate(d);
-                const inRange = dayTs >= rangeStart && dayTs <= rangeEnd;
-                const filled = inRange && !weekend;
-                return (
-                  <Box
-                    key={`${row.original.id}-${d.toISOString().slice(0, 10)}`}
-                    sx={{
-                      width: 11,
-                      height: 11,
-                      borderRadius: 0.5,
-                      border: "1px solid",
-                      borderColor: "grey.300",
-                      bgcolor: filled ? (invalidRange ? "error.light" : "rgba(66, 133, 244, 0.82)") : "transparent",
-                    }}
-                  />
-                );
-              })}
-            </Box>
-          </Box>
-        );
-      },
+      cell: ({ row }) => <TaskTimelineRowSvgCell rowOriginal={row.original} days={timelineMonthDays} />,
     },
   ];
 }

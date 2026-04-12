@@ -59,11 +59,12 @@ async function run(): Promise<void> {
     const notFoundBody = (await notFound.json()) as { error?: string };
     assert.equal(typeof notFoundBody.error, "string");
 
-    const filteredTasks = await fetch(`${base}/tasks?memberId=m-1&status=done`, {
+    const filteredTasks = await fetch(`${base}/tasks?memberId=m-1&status=done&limit=200`, {
       method: "GET",
     });
     assert.equal(filteredTasks.status, 200);
-    const taskBody = (await filteredTasks.json()) as Array<{ assigneeMemberId: string; status: string }>;
+    const taskPayload = (await filteredTasks.json()) as { items: Array<{ assigneeMemberId: string; status: string }> };
+    const taskBody = taskPayload.items;
     assert.ok(taskBody.every((item) => item.assigneeMemberId === "m-1" && item.status === "done"));
 
     console.log("CONTRACT_TEST=PASS");

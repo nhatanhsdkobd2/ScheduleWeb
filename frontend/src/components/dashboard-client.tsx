@@ -28,7 +28,14 @@ import { useMemo, useState, useEffect, useCallback, useRef, type ReactNode } fro
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type InfiniteData,
+} from "@tanstack/react-query";
 import { io } from "socket.io-client";
 import type { Member, Project, Task } from "@shared/types/domain";
 import {
@@ -39,8 +46,11 @@ import {
   deleteProject,
   getMembers,
   getProjects,
-  getTasksByFilters,
+  fetchAllTaskPages,
+  fetchTasksPage,
+  normalizeTasksPageResponse,
   type TaskFilters,
+  type TasksPageResponse,
   publicApiBaseUrl,
   updateProject,
   updateTask,
@@ -66,9 +76,12 @@ import { format } from "date-fns";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { isAppAdminEmail } from "@/lib/app-admin";
+import { mergeTasksPreserveRefs } from "@/lib/task-merge";
+import { tasksToInfiniteData } from "@/lib/task-infinite-data";
 
 function filtersFromTasksQueryKey(key: readonly unknown[]): TaskFilters {
   if (key[0] !== "tasks") return {};
+  if (key[1] === "all" && key[2] === "flat") return {};
   if (key[1] === "all" && key.length === 2) return {};
   return {
     projectId: key[1] === "all" ? undefined : String(key[1]),
@@ -78,15 +91,21 @@ function filtersFromTasksQueryKey(key: readonly unknown[]): TaskFilters {
   };
 }
 
-function mergeTasksPreserveEditingRow(
-  prev: Task[] | undefined,
-  server: Task[],
-  protectedTaskId: string | null,
-): Task[] {
-  if (!protectedTaskId) return server;
-  const keep = prev?.find((t) => t.id === protectedTaskId);
-  if (!keep) return server;
-  return server.map((t) => (t.id === protectedTaskId ? keep : t));
+/**
+ * Flatten infinite-query pages. Each page may be `{ items, total }` or a legacy raw `Task[]`
+ * (same shape as an undecorated API response).
+ */
+function flattenTaskPages(pages: unknown[] | undefined): Task[] {
+  if (!pages?.length) return [];
+  const out: Task[] = [];
+  for (const p of pages) {
+    const items = Array.isArray(p) ? p : (p as { items?: Task[] })?.items;
+    if (!Array.isArray(items)) continue;
+    for (const t of items) {
+      if (t != null && String((t as Task).id ?? "").length > 0) out.push(t as Task);
+    }
+  }
+  return out;
 }
 
 function countBusinessDaysInclusive(startDateStr: string, endDateStr: string): number {
@@ -421,11 +440,8 @@ export default function DashboardClient() {
     taskFlashIds: new Set<string>(),
   });
   const socketDebounceTimerRef = useRef<number | null>(null);
+  const lastSocketTaskRefetchAtRef = useRef(0);
   const [remoteFlashTaskIds, setRemoteFlashTaskIds] = useState(() => new Set<string>());
-  const [taskRowsVisible, setTaskRowsVisible] = useState(50);
-  const [isTaskListLoadingMore, setIsTaskListLoadingMore] = useState(false);
-  const taskListLoadMoreRef = useRef<HTMLDivElement | null>(null);
-  const taskListLoadTimerRef = useRef<number | null>(null);
   const [taskRowObjectCache] = useState(() => new Map<string, TaskTableRow & { _builtWithMounted?: boolean }>());
   const [projectForm, setProjectForm] = useState<{
     name: string;
@@ -479,25 +495,50 @@ export default function DashboardClient() {
     () => ["tasks", selectedProjectId, selectedMemberId, dateFrom, dateTo] as const,
     [selectedProjectId, selectedMemberId, dateFrom, dateTo],
   );
-  const tasksQuery = useQuery<Task[]>({
+  const tasksInfinite = useInfiniteQuery({
     queryKey: tasksQueryKey,
-    queryFn: () =>
-      getTasksByFilters({
-        projectId: selectedProjectId === "all" ? undefined : selectedProjectId,
-        memberId: selectedMemberId === "all" ? undefined : selectedMemberId,
-        dateFrom: dateFrom || undefined,
-        dateTo: dateTo || undefined,
-      }),
+    queryFn: ({ pageParam }) =>
+      fetchTasksPage(
+        {
+          projectId: selectedProjectId === "all" ? undefined : selectedProjectId,
+          memberId: selectedMemberId === "all" ? undefined : selectedMemberId,
+          dateFrom: dateFrom || undefined,
+          dateTo: dateTo || undefined,
+        },
+        pageParam,
+      ),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      const lp = normalizeTasksPageResponse(lastPage);
+      if (!Array.isArray(lp.items) || typeof lp.total !== "number") return undefined;
+      const loaded = allPages.reduce((sum, p) => sum + normalizeTasksPageResponse(p).items.length, 0);
+      if (loaded >= lp.total) return undefined;
+      return loaded;
+    },
     placeholderData: keepPreviousData,
     refetchOnWindowFocus: false,
+    structuralSharing: true,
   });
-  /** Single unfiltered list for total count + shared cache; same payload as previous `tasks-total-count` query */
-  const tasksAllQuery = useQuery<Task[]>({
-    queryKey: ["tasks", "all"],
-    queryFn: () => getTasksByFilters({}),
+  /** Full unfiltered list for KPI cards (chunked HTTP via fetchAllTaskPages). */
+  const tasksAllFlatQuery = useQuery<Task[]>({
+    queryKey: ["tasks", "all", "flat"],
+    queryFn: async () => {
+      const { items } = await fetchAllTaskPages({});
+      return items;
+    },
     placeholderData: keepPreviousData,
     refetchOnWindowFocus: false,
+    structuralSharing: true,
   });
+
+  /** Load remaining pages in the background so charts and filters see the full server-side filtered set. */
+  useEffect(() => {
+    if (!tasksInfinite.hasNextPage || tasksInfinite.isFetchingNextPage) return;
+    const t = window.setTimeout(() => {
+      void tasksInfinite.fetchNextPage();
+    }, 0);
+    return () => window.clearTimeout(t);
+  }, [tasksInfinite.hasNextPage, tasksInfinite.isFetchingNextPage, tasksInfinite.fetchNextPage, tasksInfinite.data?.pages]);
 
   const flashRemoteTaskRows = useCallback((ids: string[]) => {
     const now = Date.now();
@@ -561,6 +602,13 @@ export default function DashboardClient() {
       }
       if (!p.refreshTasks) return;
 
+      const now = Date.now();
+      const minGapMs = 2000;
+      const wait = Math.max(0, minGapMs - (now - lastSocketTaskRefetchAtRef.current));
+      if (wait > 0) {
+        await new Promise((r) => setTimeout(r, wait));
+      }
+
       const protectedTaskId =
         taskDrawerOpenRef.current && editTaskRef.current
           ? editTaskRef.current.id
@@ -571,15 +619,27 @@ export default function DashboardClient() {
         queries.map(async (q) => {
           const key = q.queryKey;
           const filters = filtersFromTasksQueryKey(key);
-          const prev = queryClient.getQueryData<Task[]>(key);
+          const prev = queryClient.getQueryData<Task[] | InfiniteData<TasksPageResponse>>(key);
           try {
-            const server = await getTasksByFilters(filters);
-            queryClient.setQueryData(key, mergeTasksPreserveEditingRow(prev, server, protectedTaskId));
+            const { items: server, total } = await fetchAllTaskPages(filters);
+            const prevFlat =
+              prev && !Array.isArray(prev)
+                ? flattenTaskPages(prev.pages)
+                : Array.isArray(prev)
+                  ? prev.filter((t): t is Task => Boolean(t?.id))
+                  : undefined;
+            const merged = mergeTasksPreserveRefs(prevFlat, server, protectedTaskId);
+            if (key[1] === "all" && key[2] === "flat") {
+              queryClient.setQueryData(key, merged);
+            } else {
+              queryClient.setQueryData(key, tasksToInfiniteData(merged, total));
+            }
           } catch {
             /* keep cache */
           }
         }),
       );
+      lastSocketTaskRefetchAtRef.current = Date.now();
     };
     const onEntityUpdated = (payload: { type: string; taskIds?: string[] }) => {
       mergePayload(payload);
@@ -587,7 +647,7 @@ export default function DashboardClient() {
       socketDebounceTimerRef.current = window.setTimeout(() => {
         socketDebounceTimerRef.current = null;
         void flush();
-      }, 300);
+      }, 400);
     };
     socket.on("entity:updated", onEntityUpdated);
     return () => {
@@ -602,12 +662,24 @@ export default function DashboardClient() {
   const canMutateTasks = Boolean(user);
   const canMutateMembersProjects = Boolean(user) && isAppAdminEmail(user?.email);
 
-  /** Patch one task in every cached task list (filtered + `["tasks","all"]`) so Dashboard KPIs and Tasks tab stay in sync. */
+  /** Patch one task in every cached task list (flat + infinite pages) so Dashboard KPIs and Tasks tab stay in sync. */
   const patchTaskInAllTaskQueries = useCallback((taskId: string, patch: Partial<Task>) => {
-    queryClient.setQueriesData<Task[]>({ queryKey: ["tasks"] }, (prev) => {
+    queryClient.setQueriesData<Task[] | InfiniteData<TasksPageResponse>>({ queryKey: ["tasks"] }, (prev) => {
       if (!prev) return prev;
-      if (!prev.some((t) => t.id === taskId)) return prev;
-      return prev.map((item) => (item.id === taskId ? { ...item, ...patch } : item));
+      if (Array.isArray(prev)) {
+        if (!prev.some((t) => t.id === taskId)) return prev;
+        return prev.map((item) => (item.id === taskId ? { ...item, ...patch } : item));
+      }
+      let touched = false;
+      const pages = prev.pages.map((page) => {
+        const nextItems = page.items.map((item) => {
+          if (item.id !== taskId) return item;
+          touched = true;
+          return { ...item, ...patch };
+        });
+        return { ...page, items: nextItems };
+      });
+      return touched ? { ...prev, pages } : prev;
     });
   }, [queryClient]);
 
@@ -643,7 +715,9 @@ export default function DashboardClient() {
     mutationFn: ({ id, payload }: { id: string; payload: Partial<Omit<Task, "id">> }) => updateTask(id, payload),
     onMutate: async ({ id, payload }) => {
       await queryClient.cancelQueries({ queryKey: ["tasks"] });
-      const previousEntries = queryClient.getQueriesData<Task[]>({ queryKey: ["tasks"] });
+      const previousEntries = queryClient.getQueriesData<Task[] | InfiniteData<TasksPageResponse>>({
+        queryKey: ["tasks"],
+      });
       patchTaskInAllTaskQueries(id, payload as Partial<Task>);
       return { previousEntries };
     },
@@ -687,8 +761,8 @@ export default function DashboardClient() {
     },
   });
 
-  const tasks = useMemo(() => tasksQuery.data ?? [], [tasksQuery.data]);
-  const totalTasksCount = tasksAllQuery.data?.length ?? tasks.length;
+  const tasks = useMemo(() => flattenTaskPages(tasksInfinite.data?.pages), [tasksInfinite.data]);
+  const filteredTasksTotal = tasksInfinite.data?.pages[0]?.total ?? tasks.length;
   const members = useMemo(() => membersQuery.data ?? [], [membersQuery.data]);
   const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data]);
 
@@ -793,7 +867,7 @@ export default function DashboardClient() {
    * stay at 0 when those Task filters exclude everything.
    */
   const tasksForDashboardKpis = useMemo(() => {
-    const list = tasksAllQuery.data ?? [];
+    const list = (tasksAllFlatQuery.data ?? []).filter((item): item is Task => Boolean(item?.id));
     const teamMemberIds =
       selectedTeam === "all"
         ? null
@@ -805,7 +879,7 @@ export default function DashboardClient() {
       if (dateTo && item.dueDate > dateTo) return false;
       return true;
     });
-  }, [tasksAllQuery.data, members, selectedTeam, dateFrom, dateTo]);
+  }, [tasksAllFlatQuery.data, members, selectedTeam, dateFrom, dateTo]);
 
   /** Derived rows for Task table — reuse row objects when underlying Task ref + labels unchanged so memoized rows skip re-render. */
   const taskTableRows = useMemo<TaskTableRow[]>(() => {
@@ -813,6 +887,7 @@ export default function DashboardClient() {
     const out: TaskTableRow[] = [];
     const seen = new Set<string>();
     for (const task of filteredTasks) {
+      if (!task?.id) continue;
       seen.add(task.id);
       const project = projectById.get(task.projectId);
       const member = memberById.get(task.assigneeMemberId);
@@ -958,67 +1033,7 @@ export default function DashboardClient() {
   const memberChartInnerHeight = useMemo(() => Math.max(420, members.length * 28), [members.length]);
   const memberChartCardHeight = memberChartInnerHeight + 90;
 
-  const visibleTaskRows = useMemo(
-    () => taskTableRows.slice(0, taskRowsVisible),
-    [taskTableRows, taskRowsVisible],
-  );
-  const triggerTaskRowsLoadMore = useCallback(() => {
-    if (isTaskListLoadingMore) return;
-    if (visibleTaskRows.length >= taskTableRows.length) return;
-    if (taskListLoadTimerRef.current !== null) return;
-
-    setIsTaskListLoadingMore(true);
-    taskListLoadTimerRef.current = window.setTimeout(() => {
-      setTaskRowsVisible((n) => Math.min(n + 50, taskTableRows.length));
-      setIsTaskListLoadingMore(false);
-      taskListLoadTimerRef.current = null;
-    }, 260);
-  }, [isTaskListLoadingMore, visibleTaskRows.length, taskTableRows.length]);
-
-  useEffect(() => {
-    queueMicrotask(() => setTaskRowsVisible(50));
-  }, [selectedTeam, selectedProjectId, selectedMemberId, dateFrom, dateTo]);
-
-  useEffect(() => {
-    const target = taskListLoadMoreRef.current;
-    if (!target) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const entry = entries[0];
-        if (!entry?.isIntersecting) return;
-        triggerTaskRowsLoadMore();
-      },
-      { root: null, rootMargin: "0px 0px 180px 0px", threshold: 0.1 },
-    );
-
-    observer.observe(target);
-    return () => {
-      observer.disconnect();
-    };
-  }, [triggerTaskRowsLoadMore]);
-
-  useEffect(() => {
-    if (activeTab !== 3) return;
-    const handleScroll = () => {
-      const scrollBottom = window.innerHeight + window.scrollY;
-      const totalHeight = document.documentElement.scrollHeight;
-      if (scrollBottom >= totalHeight - 220) {
-        triggerTaskRowsLoadMore();
-      }
-    };
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, [activeTab, triggerTaskRowsLoadMore]);
-
-  useEffect(() => {
-    return () => {
-      if (taskListLoadTimerRef.current !== null) {
-        window.clearTimeout(taskListLoadTimerRef.current);
-      }
-    };
-  }, []);
-  if (membersQuery.error || projectsQuery.error || tasksQuery.error) {
+  if (membersQuery.error || projectsQuery.error || tasksInfinite.error) {
     return (
       <Container suppressHydrationWarning sx={{ py: 4 }}>
         <Typography color="error" component="div" sx={{ whiteSpace: "pre-wrap" }}>
@@ -1030,7 +1045,7 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL (e.g. https
     );
   }
 
-  if (membersQuery.isLoading || projectsQuery.isLoading || tasksQuery.isLoading) {
+  if (membersQuery.isLoading || projectsQuery.isLoading || tasksInfinite.isPending) {
     return (
       <Container suppressHydrationWarning sx={{ py: 4 }}>
         <Stack direction="row" spacing={2} alignItems="center">
@@ -1551,20 +1566,17 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL (e.g. https
                 </Stack>
                 <TaskDataTable
                   columns={taskColumns}
-                  data={visibleTaskRows}
+                  data={taskTableRows}
                   minTableWidth={1500}
                   tableMeta={taskTableMeta}
+                  fetchNextPage={() => void tasksInfinite.fetchNextPage()}
+                  hasNextPage={tasksInfinite.hasNextPage}
+                  isFetchingNextPage={tasksInfinite.isFetchingNextPage}
                 />
                 <Typography variant="body2" color="text.secondary">
-                  Showing {visibleTaskRows.length}/{totalTasksCount} tasks
+                  Showing {taskTableRows.length}/{filteredTasksTotal} tasks
+                  {tasksInfinite.isFetchingNextPage ? " · Loading…" : null}
                 </Typography>
-                {visibleTaskRows.length < taskTableRows.length ? <Box ref={taskListLoadMoreRef} sx={{ height: 1 }} /> : null}
-                {isTaskListLoadingMore ? (
-                  <Stack direction="row" spacing={1} alignItems="center" justifyContent="center" sx={{ py: 1 }}>
-                    <CircularProgress size={16} />
-                    <Typography variant="body2" color="text.secondary">Loading more tasks...</Typography>
-                  </Stack>
-                ) : null}
                 {taskTableRows.length === 0 ? <Alert severity="info">No tasks match the current filters.</Alert> : null}
               </>
             ) : null}

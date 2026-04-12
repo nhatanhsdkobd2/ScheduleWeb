@@ -320,7 +320,7 @@ app.post("/tasks", requireRoles(["admin", "pm", "lead"]), async (req, res) => {
   if (isPersistenceEnabled()) {
     taskCode = await nextTaskCodeFromDb();
   } else {
-    const existingCodes = (await getTasks({})).map((t) => t.taskCode);
+    const existingCodes = (await getTasks({})).items.map((t) => t.taskCode);
     let nextNum = 1;
     for (const code of existingCodes) {
       const match = /^TSK-(\d+)$/.exec(code);
@@ -344,8 +344,14 @@ app.get("/tasks", async (_req, res) => {
   const dateFrom = typeof _req.query.dateFrom === "string" ? _req.query.dateFrom : undefined;
   const dateTo = typeof _req.query.dateTo === "string" ? _req.query.dateTo : undefined;
 
-  const filtered = await getTasks({ projectId, memberId, status, search, dateFrom, dateTo });
-  res.json(filtered);
+  const limitRaw = _req.query.limit;
+  const offsetRaw = _req.query.offset;
+  const limit =
+    limitRaw !== undefined ? Math.min(500, Math.max(1, Number.parseInt(String(limitRaw), 10) || 80)) : 80;
+  const offset = offsetRaw !== undefined ? Math.max(0, Number.parseInt(String(offsetRaw), 10) || 0) : 0;
+
+  const page = await getTasks({ projectId, memberId, status, search, dateFrom, dateTo }, { limit, offset });
+  res.json(page);
 });
 
 const taskPatchSchema = z
@@ -420,7 +426,7 @@ app.get("/analytics/delay-trend", async (_req, res) => {
 });
 
 app.get("/analytics/tasks-drilldown", async (_req, res) => {
-  const taskList = await getTasks({});
+  const { items: taskList } = await getTasks({});
   const data = taskList.map((task) => ({
     id: task.id,
     taskCode: task.taskCode,

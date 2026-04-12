@@ -711,9 +711,9 @@ export async function updateProject(id, patch) {
     });
     return project;
 }
-export async function getTasks(filters) {
+export async function getTasks(filters, pagination) {
     if (isPersistenceEnabled()) {
-        return listTasksFromDb(filters);
+        return listTasksFromDb(filters, pagination);
     }
     const projectId = filters.projectId;
     const memberId = filters.memberId;
@@ -721,7 +721,7 @@ export async function getTasks(filters) {
     const search = filters.search?.toLowerCase();
     const dateFrom = filters.dateFrom;
     const dateTo = filters.dateTo;
-    return tasks
+    const all = tasks
         .filter((item) => !item.deletedAt)
         .filter((item) => (projectId ? item.projectId === projectId : true))
         .filter((item) => (memberId ? item.assigneeMemberId === memberId : true))
@@ -733,6 +733,15 @@ export async function getTasks(filters) {
         const p = projects.find((pr) => pr.id === item.projectId);
         return { ...item, projectName: p?.name };
     });
+    const total = all.length;
+    if (!pagination) {
+        return { items: all, total };
+    }
+    const { limit, offset } = pagination;
+    return {
+        items: all.slice(offset, offset + limit),
+        total,
+    };
 }
 async function allActiveTasks() {
     if (isPersistenceEnabled()) {

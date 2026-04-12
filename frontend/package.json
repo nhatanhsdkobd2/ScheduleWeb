@@ -21,6 +21,7 @@
     "@mui/x-date-pickers": "^9.0.0",
     "@tanstack/react-query": "^5.96.0",
     "@tanstack/react-table": "^8.21.3",
+    "@tanstack/react-virtual": "^3.13.23",
     "chart.js": "^4.5.1",
     "date-fns": "^4.1.0",
     "exceljs": "^4.4.0",

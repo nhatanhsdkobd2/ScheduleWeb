@@ -13,8 +13,15 @@ export type TaskListFilters = {
   dateTo?: string;
 };
 
-export async function listTasksFromDb(filters: TaskListFilters): Promise<Task[]> {
-  const pool = getPool();
+export type TaskPageResult = { items: Task[]; total: number };
+
+const TASK_SELECT = `
+  SELECT t.id, t.task_code, t.title, t.project_id, t.assignee_member_id, t.due_date, t.status, t.priority,
+         t.planned_start_date, t.progress, t.completed_at, t.deleted_at,
+         p.name AS project_name
+`;
+
+function buildTaskListWhere(filters: TaskListFilters): { whereClause: string; params: unknown[] } {
   const conditions: string[] = ["t.deleted_at IS NULL"];
   const params: unknown[] = [];
   let p = 1;
@@ -55,17 +62,41 @@ export async function listTasksFromDb(filters: TaskListFilters): Promise<Task[]>
     p += 1;
   }
 
-  const sql = `
-    SELECT t.id, t.task_code, t.title, t.project_id, t.assignee_member_id, t.due_date, t.status, t.priority,
-           t.planned_start_date, t.progress, t.completed_at, t.deleted_at,
-           p.name AS project_name
-    FROM tasks t
-    LEFT JOIN projects p ON p.id = t.project_id
-    WHERE ${conditions.join(" AND ")}
-    ORDER BY t.due_date ASC, t.task_code ASC
-  `;
-  const result = await pool.query(sql, params);
-  return result.rows.map((row) => rowToTask(row as Record<string, unknown>));
+  return { whereClause: conditions.join(" AND "), params };
+}
+
+const TASK_FROM = `
+  FROM tasks t
+  LEFT JOIN projects p ON p.id = t.project_id
+`;
+
+/**
+ * List tasks. Without pagination: one SELECT, total = items.length.
+ * With pagination: COUNT(*) + SELECT … LIMIT/OFFSET (same filters).
+ */
+export async function listTasksFromDb(filters: TaskListFilters, pagination?: { limit: number; offset: number }): Promise<TaskPageResult> {
+  const pool = getPool();
+  const { whereClause, params } = buildTaskListWhere(filters);
+  const whereSql = `${TASK_FROM} WHERE ${whereClause}`;
+
+  if (!pagination) {
+    const sql = `${TASK_SELECT} ${whereSql} ORDER BY t.due_date ASC, t.task_code ASC`;
+    const result = await pool.query(sql, params);
+    const items = result.rows.map((row) => rowToTask(row as Record<string, unknown>));
+    return { items, total: items.length };
+  }
+
+  const countSql = `SELECT COUNT(*)::int AS c ${whereSql}`;
+  const countResult = await pool.query(countSql, params);
+  const total = Number(countResult.rows[0]?.c ?? 0);
+
+  const limitP = params.length + 1;
+  const offsetP = params.length + 2;
+  const sql = `${TASK_SELECT} ${whereSql} ORDER BY t.due_date ASC, t.task_code ASC LIMIT $${limitP} OFFSET $${offsetP}`;
+  const qparams = [...params, pagination.limit, pagination.offset];
+  const result = await pool.query(sql, qparams);
+  const items = result.rows.map((row) => rowToTask(row as Record<string, unknown>));
+  return { items, total };
 }
 
 export async function selectTaskByIdFromDb(id: string): Promise<Task | undefined> {

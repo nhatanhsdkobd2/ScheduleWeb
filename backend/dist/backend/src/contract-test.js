@@ -53,11 +53,12 @@ async function run() {
         assert.equal(notFound.status, 404);
         const notFoundBody = (await notFound.json());
         assert.equal(typeof notFoundBody.error, "string");
-        const filteredTasks = await fetch(`${base}/tasks?memberId=m-1&status=done`, {
+        const filteredTasks = await fetch(`${base}/tasks?memberId=m-1&status=done&limit=200`, {
             method: "GET",
         });
         assert.equal(filteredTasks.status, 200);
-        const taskBody = (await filteredTasks.json());
+        const taskPayload = (await filteredTasks.json());
+        const taskBody = taskPayload.items;
         assert.ok(taskBody.every((item) => item.assigneeMemberId === "m-1" && item.status === "done"));
         console.log("CONTRACT_TEST=PASS");
     }

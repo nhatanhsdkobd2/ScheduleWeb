@@ -47,16 +47,8 @@ export async function getWeeklyReportRows(): Promise<WeeklyReportRow[]> {
   }
 }
 
-export async function getTasks(): Promise<Task[]> {
-  try {
-    const response = await fetch(`${API_BASE}/tasks`, { cache: "no-store" });
-    if (!response.ok) throw new Error("Failed to load tasks");
-    return (await response.json()) as Task[];
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "Unknown error";
-    throw new Error(`Tasks load failed: ${msg}`);
-  }
-}
+/** Server max per request is 500; keep pages smaller for smoother UX. */
+export const TASK_PAGE_SIZE = 80;
 
 export interface TaskFilters {
   search?: string;
@@ -67,7 +59,32 @@ export interface TaskFilters {
   dateTo?: string;
 }
 
-export async function getTasksByFilters(filters: TaskFilters): Promise<Task[]> {
+export type TasksPageResponse = { items: Task[]; total: number };
+
+/**
+ * Supports both paginated `{ items, total }` and legacy plain `Task[]` bodies so the UI works
+ * if an older API or proxy still returns a raw array.
+ */
+export function normalizeTasksPageResponse(raw: unknown): TasksPageResponse {
+  if (Array.isArray(raw)) {
+    const items = raw as Task[];
+    return { items, total: items.length };
+  }
+  if (raw && typeof raw === "object") {
+    const o = raw as Record<string, unknown>;
+    const items = o.items;
+    const total = o.total;
+    if (Array.isArray(items)) {
+      return {
+        items: items as Task[],
+        total: typeof total === "number" && Number.isFinite(total) ? total : items.length,
+      };
+    }
+  }
+  return { items: [], total: 0 };
+}
+
+export function buildTasksQueryParams(filters: TaskFilters): URLSearchParams {
   const params = new URLSearchParams();
   if (filters.search) params.set("search", filters.search);
   if (filters.projectId && filters.projectId !== "all") params.set("projectId", filters.projectId);
@@ -75,9 +92,38 @@ export async function getTasksByFilters(filters: TaskFilters): Promise<Task[]> {
   if (filters.status && filters.status !== "all") params.set("status", filters.status);
   if (filters.dateFrom) params.set("dateFrom", filters.dateFrom);
   if (filters.dateTo) params.set("dateTo", filters.dateTo);
+  return params;
+}
+
+export async function fetchTasksPage(filters: TaskFilters, offset: number): Promise<TasksPageResponse> {
+  const params = buildTasksQueryParams(filters);
+  params.set("limit", String(TASK_PAGE_SIZE));
+  params.set("offset", String(offset));
   const query = params.toString();
-  const url = query ? `${API_BASE}/tasks?${query}` : `${API_BASE}/tasks`;
-  return requestJson<Task[]>(url);
+  const url = `${API_BASE}/tasks?${query}`;
+  const raw = await requestJson<unknown>(url);
+  return normalizeTasksPageResponse(raw);
+}
+
+/** Loads every page for the given filters (used after socket updates and for legacy helpers). */
+export async function fetchAllTaskPages(filters: TaskFilters): Promise<TasksPageResponse> {
+  const items: Task[] = [];
+  let offset = 0;
+  let total = 0;
+  for (;;) {
+    const page = await fetchTasksPage(filters, offset);
+    total = page.total;
+    items.push(...page.items);
+    offset += page.items.length;
+    if (page.items.length === 0 || items.length >= total) {
+      return { items, total };
+    }
+  }
+}
+
+export async function getTasks(): Promise<Task[]> {
+  const { items } = await fetchAllTaskPages({});
+  return items;
 }
 
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {

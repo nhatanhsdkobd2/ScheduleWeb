@@ -1,8 +1,9 @@
 "use client";
 
 import { keyframes } from "@emotion/react";
-import { memo } from "react";
+import { memo, useEffect, useRef } from "react";
 import { flexRender, getCoreRowModel, useReactTable, type Row } from "@tanstack/react-table";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { alpha, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, useTheme } from "@mui/material";
 import type { Member } from "@shared/types/domain";
 import type { TaskTableMeta } from "@/components/task-table/task-table-meta";
@@ -14,6 +15,9 @@ const remoteUpdateFlash = keyframes`
   100% { background-color: transparent; }
 `;
 
+/** Matches estimateSize — rows may grow slightly with wrapped text; padding keeps layout stable. */
+const TASK_TABLE_ROW_ESTIMATE_PX = 56;
+
 type TaskTableRowProps = {
   row: Row<TaskTableRow>;
   editingField: ReturnType<typeof getRowEditingField>;
@@ -22,6 +26,7 @@ type TaskTableRowProps = {
   mounted: boolean;
   timelineMonthDays: Date[];
   rowRemoteFlash: boolean;
+  virtualSize: number;
 };
 
 function taskRowPropsEqual(prev: TaskTableRowProps, next: TaskTableRowProps): boolean {
@@ -32,7 +37,8 @@ function taskRowPropsEqual(prev: TaskTableRowProps, next: TaskTableRowProps): bo
     prev.members === next.members &&
     prev.mounted === next.mounted &&
     prev.timelineMonthDays === next.timelineMonthDays &&
-    prev.rowRemoteFlash === next.rowRemoteFlash
+    prev.rowRemoteFlash === next.rowRemoteFlash &&
+    prev.virtualSize === next.virtualSize
   );
 }
 
@@ -40,6 +46,7 @@ function taskRowPropsEqual(prev: TaskTableRowProps, next: TaskTableRowProps): bo
 export const TaskRow = memo(function TaskRow({
   row,
   rowRemoteFlash,
+  virtualSize,
 }: TaskTableRowProps) {
   const theme = useTheme();
   return (
@@ -49,8 +56,9 @@ export const TaskRow = memo(function TaskRow({
           ? {
               animation: `${remoteUpdateFlash} 2s ease-out forwards`,
               outline: `1px solid ${alpha(theme.palette.warning.main, 0.45)}`,
+              minHeight: virtualSize,
             }
-          : undefined
+          : { minHeight: virtualSize }
       }
     >
       {row.getVisibleCells().map((cell) => (
@@ -67,11 +75,20 @@ export default function TaskDataTable({
   data,
   minTableWidth,
   tableMeta,
+  scrollContainerMaxHeight = 560,
+  fetchNextPage,
+  hasNextPage = false,
+  isFetchingNextPage = false,
 }: {
   columns: import("@tanstack/react-table").ColumnDef<TaskTableRow>[];
   data: TaskTableRow[];
   minTableWidth?: number;
   tableMeta: TaskTableMeta;
+  /** Vertical viewport for the task list (inner scroll). */
+  scrollContainerMaxHeight?: number;
+  fetchNextPage?: () => void | Promise<unknown>;
+  hasNextPage?: boolean;
+  isFetchingNextPage?: boolean;
 }) {
   const table = useReactTable({
     data,
@@ -83,9 +100,49 @@ export default function TaskDataTable({
 
   const { activeTaskCell, canMutateTasks, members, mounted, timelineMonthDays, isTaskRowFlashing } = tableMeta;
 
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const rows = table.getRowModel().rows;
+  const colCount = table.getVisibleLeafColumns().length;
+
+  const rowVirtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => TASK_TABLE_ROW_ESTIMATE_PX,
+    overscan: 10,
+    getItemKey: (index) => rows[index]?.id ?? index,
+  });
+
+  const virtualItems = rowVirtualizer.getVirtualItems();
+  const firstVirt = virtualItems[0];
+  const lastVirt = virtualItems.length > 0 ? virtualItems[virtualItems.length - 1] : undefined;
+  const paddingTop = firstVirt !== undefined ? firstVirt.start : 0;
+  const paddingBottom =
+    lastVirt !== undefined ? rowVirtualizer.getTotalSize() - lastVirt.end : 0;
+
+  useEffect(() => {
+    if (!fetchNextPage || !hasNextPage || isFetchingNextPage) return;
+    const last = virtualItems[virtualItems.length - 1];
+    if (!last) return;
+    if (last.index >= rows.length - 4) {
+      void fetchNextPage();
+    }
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage, rows.length, virtualItems]);
+
   return (
-    <TableContainer component={Paper} variant="outlined" sx={{ overflowX: "auto" }}>
-      <Table size="small" sx={minTableWidth ? { minWidth: minTableWidth } : undefined}>
+    <TableContainer
+      component={Paper}
+      variant="outlined"
+      ref={scrollRef}
+      sx={{
+        maxHeight: scrollContainerMaxHeight,
+        overflow: "auto",
+        // Ẩn thanh cuộn (ngang + dọc); vẫn cuộn bình thường bằng wheel / trackpad / phím
+        scrollbarWidth: "none",
+        msOverflowStyle: "none",
+        "&::-webkit-scrollbar": { display: "none" },
+      }}
+    >
+      <Table size="small" stickyHeader sx={minTableWidth ? { minWidth: minTableWidth } : undefined}>
         <TableHead>
           {table.getHeaderGroups().map((group) => (
             <TableRow key={group.id}>
@@ -98,18 +155,33 @@ export default function TaskDataTable({
           ))}
         </TableHead>
         <TableBody>
-          {table.getRowModel().rows.map((row) => (
-            <TaskRow
-              key={row.id}
-              row={row}
-              rowRemoteFlash={isTaskRowFlashing(row.original.id)}
-              editingField={getRowEditingField(row.original.id, activeTaskCell)}
-              canMutateTasks={canMutateTasks}
-              members={members}
-              mounted={mounted}
-              timelineMonthDays={timelineMonthDays}
-            />
-          ))}
+          {paddingTop > 0 ? (
+            <TableRow>
+              <TableCell colSpan={colCount} sx={{ p: 0, border: "none", height: paddingTop }} />
+            </TableRow>
+          ) : null}
+          {virtualItems.map((v) => {
+            const row = rows[v.index];
+            if (!row) return null;
+            return (
+              <TaskRow
+                key={row.id}
+                row={row}
+                rowRemoteFlash={isTaskRowFlashing(row.original.id)}
+                editingField={getRowEditingField(row.original.id, activeTaskCell)}
+                canMutateTasks={canMutateTasks}
+                members={members}
+                mounted={mounted}
+                timelineMonthDays={timelineMonthDays}
+                virtualSize={v.size}
+              />
+            );
+          })}
+          {paddingBottom > 0 ? (
+            <TableRow>
+              <TableCell colSpan={colCount} sx={{ p: 0, border: "none", height: paddingBottom }} />
+            </TableRow>
+          ) : null}
         </TableBody>
       </Table>
     </TableContainer>
