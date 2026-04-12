@@ -1,4 +1,4 @@
-◇ injected env (0) from .env // tip: ◈ encrypted .env [www.dotenvx.com]
+◇ injected env (0) from .env // tip: ◈ secrets for agents [www.dotenvx.com]
 ◇ injected env (2) from ..\.env // tip: ⌘ override existing { override: true }
 node:events:486
       throw er; // Unhandled 'error' event

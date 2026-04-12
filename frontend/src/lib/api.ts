@@ -62,9 +62,22 @@ export interface TaskFilters {
 export type TasksPageResponse = { items: Task[]; total: number };
 
 /**
- * Supports both paginated `{ items, total }` and legacy plain `Task[]` bodies so the UI works
- * if an older API or proxy still returns a raw array.
+ * Coerce `Task[]`, legacy `{ items, total }` paginated bodies, or mistaken React Query cache values
+ * into a plain `Task[]` (e.g. when `/tasks` shape was stored where a flat array was expected).
  */
+export function asTaskArray(value: unknown): Task[] {
+  if (Array.isArray(value)) {
+    return (value as Task[]).filter((t) => t != null && String((t as Task).id ?? "").length > 0);
+  }
+  if (value && typeof value === "object" && "items" in (value as object)) {
+    const items = (value as TasksPageResponse).items;
+    if (Array.isArray(items)) {
+      return items.filter((t) => t != null && String(t.id ?? "").length > 0);
+    }
+  }
+  return [];
+}
+
 export function normalizeTasksPageResponse(raw: unknown): TasksPageResponse {
   if (Array.isArray(raw)) {
     const items = raw as Task[];
@@ -123,6 +136,12 @@ export async function fetchAllTaskPages(filters: TaskFilters): Promise<TasksPage
 
 export async function getTasks(): Promise<Task[]> {
   const { items } = await fetchAllTaskPages({});
+  return items;
+}
+
+/** Full task list for the given filters (all pages), always `Task[]`. */
+export async function getTasksByFilters(filters: TaskFilters): Promise<Task[]> {
+  const { items } = await fetchAllTaskPages(filters);
   return items;
 }
 

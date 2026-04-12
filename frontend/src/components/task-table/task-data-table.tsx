@@ -90,8 +90,9 @@ export default function TaskDataTable({
   hasNextPage?: boolean;
   isFetchingNextPage?: boolean;
 }) {
+  const safeData = Array.isArray(data) ? data : [];
   const table = useReactTable({
-    data,
+    data: safeData,
     columns,
     meta: tableMeta,
     getCoreRowModel: getCoreRowModel(),

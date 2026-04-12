@@ -46,6 +46,7 @@ import {
   deleteProject,
   getMembers,
   getProjects,
+  asTaskArray,
   fetchAllTaskPages,
   fetchTasksPage,
   normalizeTasksPageResponse,
@@ -96,7 +97,7 @@ function filtersFromTasksQueryKey(key: readonly unknown[]): TaskFilters {
  * (same shape as an undecorated API response).
  */
 function flattenTaskPages(pages: unknown[] | undefined): Task[] {
-  if (!pages?.length) return [];
+  if (!Array.isArray(pages) || !pages.length) return [];
   const out: Task[] = [];
   for (const p of pages) {
     const items = Array.isArray(p) ? p : (p as { items?: Task[] })?.items;
@@ -520,12 +521,13 @@ export default function DashboardClient() {
     structuralSharing: true,
   });
   /** Full unfiltered list for KPI cards (chunked HTTP via fetchAllTaskPages). */
-  const tasksAllFlatQuery = useQuery<Task[]>({
+  const tasksAllFlatQuery = useQuery({
     queryKey: ["tasks", "all", "flat"],
     queryFn: async () => {
       const { items } = await fetchAllTaskPages({});
       return items;
     },
+    select: (data: unknown) => asTaskArray(data),
     placeholderData: keepPreviousData,
     refetchOnWindowFocus: false,
     structuralSharing: true,
@@ -761,8 +763,16 @@ export default function DashboardClient() {
     },
   });
 
-  const tasks = useMemo(() => flattenTaskPages(tasksInfinite.data?.pages), [tasksInfinite.data]);
-  const filteredTasksTotal = tasksInfinite.data?.pages[0]?.total ?? tasks.length;
+  const tasks = useMemo(() => {
+    const pages = tasksInfinite.data?.pages;
+    if (!Array.isArray(pages)) return [];
+    return flattenTaskPages(pages);
+  }, [tasksInfinite.data]);
+  const filteredTasksTotal = useMemo(() => {
+    const p0 = tasksInfinite.data?.pages?.[0];
+    if (p0 === undefined) return tasks.length;
+    return normalizeTasksPageResponse(p0).total;
+  }, [tasksInfinite.data?.pages, tasks.length]);
   const members = useMemo(() => membersQuery.data ?? [], [membersQuery.data]);
   const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data]);
 
@@ -867,7 +877,7 @@ export default function DashboardClient() {
    * stay at 0 when those Task filters exclude everything.
    */
   const tasksForDashboardKpis = useMemo(() => {
-    const list = (tasksAllFlatQuery.data ?? []).filter((item): item is Task => Boolean(item?.id));
+    const list = asTaskArray(tasksAllFlatQuery.data);
     const teamMemberIds =
       selectedTeam === "all"
         ? null
