@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Box, Button, CircularProgress, Container, Stack, Typography } from "@mui/material";
 import GoogleIcon from "@mui/icons-material/Google";
@@ -9,6 +10,7 @@ import { useAuth } from "@/context/AuthContext";
 export default function LoginPage() {
   const { user, loading, signInWithGoogle } = useAuth();
   const router = useRouter();
+  const [errorText, setErrorText] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && user) {
@@ -17,11 +19,14 @@ export default function LoginPage() {
   }, [user, loading, router]);
 
   const handleGoogle = async () => {
+    setErrorText(null);
     try {
       await signInWithGoogle();
       router.replace("/");
-    } catch {
-      // User closed the popup or sign-in failed — stay on this page.
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Google sign-in failed";
+      setErrorText(message);
+      console.error("[auth] Google sign-in failed:", error);
     }
   };
 
@@ -59,6 +64,11 @@ export default function LoginPage() {
         >
           Sign in with Google
         </Button>
+        {errorText ? (
+          <Typography color="error" textAlign="center">
+            {errorText}
+          </Typography>
+        ) : null}
       </Stack>
     </Container>
   );
