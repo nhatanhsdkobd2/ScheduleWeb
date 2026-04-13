@@ -52,6 +52,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (!auth) {
+      setLoading(false);
+      setAuthSessionCookie(false);
+      return;
+    }
     const unsub = onAuthStateChanged(auth, (u) => {
       setUser(u);
       setLoading(false);
@@ -61,12 +66,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signInWithGoogle = useCallback(async () => {
+    if (!auth) {
+      throw new Error("Firebase auth is not configured. Set NEXT_PUBLIC_FIREBASE_* env vars.");
+    }
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: "select_account" });
     await signInWithPopup(auth, provider);
   }, []);
 
   const signOutUser = useCallback(async () => {
+    if (!auth) return;
     setAuthSessionCookie(false);
     await firebaseSignOut(auth);
   }, []);
