@@ -8,7 +8,7 @@ import { z } from "zod";
 import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
 import { addAuditLog, auditLogs, createMember, createProject, createReportRecord, createTask, findMemberById, findProjectById, findTaskById, getDashboardSummary, getDelayTrend, getMembersForRead, getMonthlyReportRows, getPerformance, getPerformanceByPeriod, getProjectsForRead, getTasks, loadOrInitializePersistence, softDeleteProject, getStatusDistribution, getWeeklyReportRows, projectMembers, removeMemberFromProject, reportHistory, assignMemberToProject, softDeleteMember, taskHistory, updateMember, updateProject, updateReportRecord, updateTask, } from "./data.js";
-import { getPool, isPersistenceEnabled, requireDatabaseInProduction } from "./db/index.js";
+import { getPool, isPersistenceEnabled } from "./db/index.js";
 import { nextTaskCodeFromDb } from "./db/task-store.js";
 import { generateExcelReport, generatePdfReport } from "./report-generator.js";
 import { attachSocketIo, emitEntityUpdated } from "./realtime.js";
@@ -550,9 +550,8 @@ app.use((err, _req, res, next) => {
         next(err);
         return;
     }
-    const isProd = process.env.NODE_ENV === "production";
     const body = { error: "Internal Server Error" };
-    if (!isProd && err instanceof Error && err.message) {
+    if (err instanceof Error && err.message) {
         body.detail = err.message;
     }
     res.status(500).json(body);
@@ -562,7 +561,6 @@ const host = process.env.HOST ?? "0.0.0.0";
 const httpServer = createServer(app);
 attachSocketIo(httpServer, corsOrigin);
 async function start() {
-    requireDatabaseInProduction();
     await loadOrInitializePersistence();
     httpServer.listen(port, host, () => {
         console.log(`Backend listening on http://${host}:${port}`);

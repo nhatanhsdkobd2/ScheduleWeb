@@ -41,7 +41,7 @@ import {
   updateReportRecord,
   updateTask,
 } from "./data.js";
-import { getPool, isPersistenceEnabled, requireDatabaseInProduction } from "./db/index.js";
+import { getPool, isPersistenceEnabled } from "./db/index.js";
 import { nextTaskCodeFromDb } from "./db/task-store.js";
 import { generateExcelReport, generatePdfReport } from "./report-generator.js";
 import { attachSocketIo, emitEntityUpdated } from "./realtime.js";
@@ -607,9 +607,8 @@ app.use((err: unknown, _req: express.Request, res: express.Response, next: expre
     next(err);
     return;
   }
-  const isProd = process.env.NODE_ENV === "production";
   const body: { error: string; detail?: string } = { error: "Internal Server Error" };
-  if (!isProd && err instanceof Error && err.message) {
+  if (err instanceof Error && err.message) {
     body.detail = err.message;
   }
   res.status(500).json(body);
@@ -622,7 +621,6 @@ const httpServer = createServer(app);
 attachSocketIo(httpServer, corsOrigin);
 
 async function start(): Promise<void> {
-  requireDatabaseInProduction();
   await loadOrInitializePersistence();
   httpServer.listen(port, host, () => {
     console.log(`Backend listening on http://${host}:${port}`);

@@ -4,11 +4,20 @@
 
 ▲ Next.js 16.2.1 (Turbopack)
 - Local:         http://localhost:3000
-- Network:       http://192.168.100.70:3000
+- Network:       http://172.16.49.60:3000
 - Environments: .env.local
-✓ Ready in 363ms
+✓ Ready in 203ms
+⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+ We detected multiple lockfiles and selected the directory of /Users/full-stack-sdk01/package-lock.json as the root directory.
+ To silence this warning, set `turbopack.root` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+   See https://nextjs.org/docs/app/api-reference/config/next-config-js/turbopack#root-directory for more information.
+ Detected additional lockfiles: 
+   * /Users/full-stack-sdk01/Downloads/ScheduleWebNew/frontend/package-lock.json
+
 ⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
 
-○ Compiling / ...
- GET / 200 in 6.1s (next.js: 5.6s, application-code: 500ms)
- GET / 200 in 119ms (next.js: 19ms, application-code: 99ms)
+ GET / 200 in 1037ms (next.js: 740ms, application-code: 297ms)
+ GET / 200 in 3.4s (next.js: 3.1s, application-code: 271ms)
+ GET /login 200 in 435ms (next.js: 341ms, proxy.ts: 72ms, application-code: 21ms)
+ GET / 200 in 40ms (next.js: 6ms, application-code: 34ms)
+ GET / 200 in 12ms (next.js: 1765µs, application-code: 10ms)

@@ -15,7 +15,6 @@ RUN npm run build
 # Stage 2: Run
 FROM node:20-alpine
 WORKDIR /app
-ENV NODE_ENV=production
 
 COPY --from=builder /workspace/frontend/public ./public
 COPY --from=builder /workspace/frontend/.next ./.next
