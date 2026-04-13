@@ -15,22 +15,22 @@ function getFirebaseConfig() {
   };
 }
 
-function hasRequiredFirebaseConfig(config: ReturnType<typeof getFirebaseConfig>): boolean {
-  return Boolean(
-    config.apiKey &&
-      config.authDomain &&
-      config.projectId &&
-      config.storageBucket &&
-      config.messagingSenderId &&
-      config.appId,
-  );
+function getMissingFirebaseKeys(config: ReturnType<typeof getFirebaseConfig>): string[] {
+  const required: Array<{ key: string; value: string | undefined }> = [
+    { key: "NEXT_PUBLIC_FIREBASE_API_KEY", value: config.apiKey },
+    { key: "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN", value: config.authDomain },
+    { key: "NEXT_PUBLIC_FIREBASE_PROJECT_ID", value: config.projectId },
+    { key: "NEXT_PUBLIC_FIREBASE_APP_ID", value: config.appId },
+  ];
+  return required.filter((item) => !item.value?.trim()).map((item) => item.key);
 }
 
 function getOrInitApp(): FirebaseApp | null {
   const config = getFirebaseConfig();
-  if (!hasRequiredFirebaseConfig(config)) {
+  const missingKeys = getMissingFirebaseKeys(config);
+  if (missingKeys.length > 0) {
     if (typeof window !== "undefined") {
-      console.warn("[firebase] Missing NEXT_PUBLIC_FIREBASE_* env vars. Firebase auth is disabled.");
+      console.warn(`[firebase] Missing env vars: ${missingKeys.join(", ")}. Firebase auth is disabled.`);
     }
     return null;
   }

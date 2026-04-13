@@ -27,3 +27,9 @@
  GET / 200 in 41ms (next.js: 5ms, application-code: 36ms)
  GET / 200 in 14ms (next.js: 2ms, application-code: 12ms)
 ✓ Compiled in 34ms
+⚠ Fast Refresh had to perform a full reload when ./Downloads/ScheduleWebNew/frontend/src/lib/firebase.ts changed. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+✓ Compiled in 30ms
+ GET / 200 in 41ms (next.js: 7ms, application-code: 34ms)
+⚠ Fast Refresh had to perform a full reload when ./Downloads/ScheduleWebNew/frontend/src/context/AuthContext.tsx [app-client] (ecmascript) <locals> changed. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+ GET / 200 in 27ms (next.js: 1688µs, application-code: 25ms)
+✓ Compiled in 30ms
