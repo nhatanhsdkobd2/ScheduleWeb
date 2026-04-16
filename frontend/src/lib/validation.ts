@@ -5,7 +5,7 @@ import { z } from "zod";
 export const memberFormSchema = z.object({
   fullName: z.string().min(2, "Full name must be at least 2 characters"),
   email: z.string().email("Invalid email address"),
-  role: z.enum(["admin", "pm", "lead", "member"]),
+  role: z.enum(["admin", "lead", "member"]),
   team: z.string().min(1, "Team is required"),
   status: z.enum(["active", "inactive"]),
 });

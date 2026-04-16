@@ -10,19 +10,17 @@ import {
   type ReactNode,
 } from "react";
 import {
-  GoogleAuthProvider,
-  onAuthStateChanged,
-  signInWithPopup,
-  signOut as firebaseSignOut,
-  type User,
-} from "firebase/auth";
-import { auth } from "@/lib/firebase";
-import { initFirebaseAnalytics } from "@/lib/firebase-analytics";
+  changePassword,
+  loginWithEmailPassword,
+  setApiAuthRole,
+  type AuthLoginUser,
+} from "@/lib/api";
 import { AUTH_SESSION_COOKIE } from "@/lib/auth-session";
 
 export { AUTH_SESSION_COOKIE } from "@/lib/auth-session";
 
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
+const AUTH_STORAGE_KEY = "scheduleweb.auth_user";
 
 export function setAuthSessionCookie(loggedIn: boolean) {
   if (typeof document === "undefined") return;
@@ -34,55 +32,94 @@ export function setAuthSessionCookie(loggedIn: boolean) {
   }
 }
 
+function writeStoredUser(user: AuthLoginUser | null): void {
+  if (typeof window === "undefined") return;
+  if (!user) {
+    window.localStorage.removeItem(AUTH_STORAGE_KEY);
+    return;
+  }
+  window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
+}
+
+function readStoredUser(): AuthLoginUser | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(AUTH_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<AuthLoginUser>;
+    if (!parsed || typeof parsed !== "object") return null;
+    if (!parsed.id || !parsed.email || !parsed.displayName) return null;
+    return {
+      id: String(parsed.id),
+      email: String(parsed.email),
+      displayName: String(parsed.displayName),
+      role: (parsed.role as AuthLoginUser["role"]) ?? "member",
+      team: String(parsed.team ?? ""),
+      photoURL: parsed.photoURL ?? null,
+      mustChangePassword: Boolean(parsed.mustChangePassword),
+    };
+  } catch {
+    return null;
+  }
+}
+
 type AuthContextValue = {
-  user: User | null;
+  user: AuthLoginUser | null;
   loading: boolean;
-  signInWithGoogle: () => Promise<void>;
+  signInWithPassword: (email: string, password: string) => Promise<AuthLoginUser>;
+  changeMyPassword: (currentPassword: string, newPassword: string, confirmPassword: string) => Promise<void>;
   signOutUser: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthLoginUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    void initFirebaseAnalytics();
+    const saved = readStoredUser();
+    setUser(saved);
+    setApiAuthRole(saved?.role);
+    setAuthSessionCookie(Boolean(saved));
+    setLoading(false);
   }, []);
 
-  useEffect(() => {
-    if (!auth) {
-      setLoading(false);
-      setAuthSessionCookie(false);
-      return;
-    }
-    const unsub = onAuthStateChanged(auth, (u) => {
-      setUser(u);
-      setLoading(false);
-      setAuthSessionCookie(Boolean(u));
-    });
-    return () => unsub();
+  const signInWithPassword = useCallback(async (email: string, password: string) => {
+    const loggedInUser = await loginWithEmailPassword(email, password);
+    setUser(loggedInUser);
+    writeStoredUser(loggedInUser);
+    setApiAuthRole(loggedInUser.role);
+    setAuthSessionCookie(true);
+    return loggedInUser;
   }, []);
 
-  const signInWithGoogle = useCallback(async () => {
-    if (!auth) {
-      throw new Error("Firebase auth is not configured. Check NEXT_PUBLIC_FIREBASE_API_KEY, NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN, NEXT_PUBLIC_FIREBASE_PROJECT_ID, NEXT_PUBLIC_FIREBASE_APP_ID.");
-    }
-    const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({ prompt: "select_account" });
-    await signInWithPopup(auth, provider);
-  }, []);
+  const changeMyPassword = useCallback(
+    async (currentPassword: string, newPassword: string, confirmPassword: string) => {
+      const current = readStoredUser();
+      const email = current?.email ?? user?.email;
+      if (!email) {
+        throw new Error("No active user session.");
+      }
+      const updated = await changePassword(email, currentPassword, newPassword, confirmPassword);
+      setUser(updated);
+      writeStoredUser(updated);
+      setApiAuthRole(updated.role);
+      setAuthSessionCookie(true);
+    },
+    [user?.email],
+  );
 
   const signOutUser = useCallback(async () => {
-    if (!auth) return;
+    writeStoredUser(null);
+    setUser(null);
+    setApiAuthRole("member");
     setAuthSessionCookie(false);
-    await firebaseSignOut(auth);
   }, []);
 
   const value = useMemo(
-    () => ({ user, loading, signInWithGoogle, signOutUser }),
-    [user, loading, signInWithGoogle, signOutUser],
+    () => ({ user, loading, signInWithPassword, changeMyPassword, signOutUser }),
+    [user, loading, signInWithPassword, changeMyPassword, signOutUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

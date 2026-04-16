@@ -3,30 +3,39 @@
 import { useEffect } from "react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Box, Button, CircularProgress, Container, Stack, Typography } from "@mui/material";
-import GoogleIcon from "@mui/icons-material/Google";
+import { Box, Button, CircularProgress, Container, Stack, TextField, Typography } from "@mui/material";
 import { useAuth } from "@/context/AuthContext";
 
 export default function LoginPage() {
-  const { user, loading, signInWithGoogle } = useAuth();
+  const { user, loading, signInWithPassword } = useAuth();
   const router = useRouter();
   const [errorText, setErrorText] = useState<string | null>(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (!loading && user) {
-      router.replace("/");
+      router.replace(user.mustChangePassword ? "/change-password" : "/");
     }
   }, [user, loading, router]);
 
-  const handleGoogle = async () => {
+  const handleLogin = async () => {
+    if (!email.trim() || !password.trim()) {
+      setErrorText("Please enter email and password.");
+      return;
+    }
     setErrorText(null);
+    setSubmitting(true);
     try {
-      await signInWithGoogle();
-      router.replace("/");
+      const signedInUser = await signInWithPassword(email.trim(), password);
+      router.replace(signedInUser.mustChangePassword ? "/change-password" : "/");
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Google sign-in failed";
+      const message = error instanceof Error ? error.message : "Login failed";
       setErrorText(message);
-      console.error("[auth] Google sign-in failed:", error);
+      console.error("[auth] Email/password sign-in failed:", error);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -53,16 +62,38 @@ export default function LoginPage() {
           Sign in
         </Typography>
         <Typography color="text.secondary" textAlign="center">
-          Continue with your Google account.
+          Use your company account email and password.
         </Typography>
+        <TextField
+          label="Email"
+          type="email"
+          fullWidth
+          autoComplete="username"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+        />
+        <TextField
+          label="Password"
+          type="password"
+          fullWidth
+          autoComplete="current-password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              void handleLogin();
+            }
+          }}
+        />
         <Button
           variant="contained"
           size="large"
-          startIcon={<GoogleIcon />}
-          onClick={() => void handleGoogle()}
+          onClick={() => void handleLogin()}
+          disabled={submitting}
           sx={{ px: 3, py: 1.5, textTransform: "none", fontWeight: 600 }}
         >
-          Sign in with Google
+          {submitting ? "Signing in..." : "Sign in"}
         </Button>
         {errorText ? (
           <Typography color="error" textAlign="center">

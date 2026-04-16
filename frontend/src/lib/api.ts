@@ -20,6 +20,16 @@ export interface DashboardPayload {
   performance: PerformanceItem[];
 }
 
+export interface AuthLoginUser {
+  id: string;
+  displayName: string;
+  email: string;
+  role: "admin" | "lead" | "member";
+  team: string;
+  photoURL: string | null;
+  mustChangePassword: boolean;
+}
+
 /**
  * Real backend origin (Socket.IO, error text). Set NEXT_PUBLIC_API_BASE_URL (e.g. Render URL).
  * JSON `fetch` uses `API_FETCH_BASE` instead when NEXT_PUBLIC_USE_API_PROXY is true (see next.config).
@@ -32,6 +42,11 @@ const useApiProxy =
 
 /** Browser calls same-origin `/api/proxy/...` → Next rewrites to backend (avoids CORS on localhost dev). */
 const API_FETCH_BASE = useApiProxy ? "/api/proxy" : backendOrigin;
+let currentAuthRole: AuthLoginUser["role"] = "member";
+
+export function setApiAuthRole(role: AuthLoginUser["role"] | null | undefined): void {
+  currentAuthRole = role ?? "member";
+}
 
 export async function getDashboardData(): Promise<DashboardPayload> {
   try {
@@ -42,6 +57,33 @@ export async function getDashboardData(): Promise<DashboardPayload> {
     const msg = err instanceof Error ? err.message : "Unknown error";
     throw new Error(`Dashboard load failed: ${msg}`);
   }
+}
+
+export async function loginWithEmailPassword(email: string, password: string): Promise<AuthLoginUser> {
+  const payload = await requestJson<{ user: AuthLoginUser }>(`${API_FETCH_BASE}/auth/login`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ email, password }),
+  });
+  return payload.user;
+}
+
+export async function changePassword(
+  email: string,
+  currentPassword: string,
+  newPassword: string,
+  confirmPassword: string,
+): Promise<AuthLoginUser> {
+  const payload = await requestJson<{ user: AuthLoginUser }>(`${API_FETCH_BASE}/auth/change-password`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ email, currentPassword, newPassword, confirmPassword }),
+  });
+  return payload.user;
 }
 
 export async function getWeeklyReportRows(): Promise<WeeklyReportRow[]> {
@@ -234,7 +276,7 @@ async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
-const roleHeaders = (role: "admin" | "pm" | "lead" | "member" = "lead"): HeadersInit => ({
+const roleHeaders = (role: "admin" | "lead" | "member" = currentAuthRole): HeadersInit => ({
   "Content-Type": "application/json",
   "x-role": role,
 });
@@ -264,6 +306,26 @@ export async function deleteMember(id: string): Promise<void> {
   await requestJson<{ status: string }>(`${API_FETCH_BASE}/members/${id}`, {
     method: "DELETE",
     headers: roleHeaders(),
+  });
+}
+
+export type AdminCreateAccountPayload = {
+  fullName: string;
+  email: string;
+  role: "admin" | "lead" | "member";
+  team: string;
+  password: string;
+  mustChangePassword: boolean;
+};
+
+export async function createAccountAsAdmin(payload: AdminCreateAccountPayload): Promise<{
+  member: Member;
+  account: { email: string; mustChangePassword: boolean };
+}> {
+  return requestJson(`${API_FETCH_BASE}/auth/users`, {
+    method: "POST",
+    headers: roleHeaders(),
+    body: JSON.stringify(payload),
   });
 }
 

@@ -1,4 +1,4 @@
-export type Role = "admin" | "pm" | "lead" | "member";
+export type Role = "admin" | "lead" | "member";
 export type TaskStatus = "todo" | "in_progress" | "blocked" | "done" | "canceled";
 export type Priority = "low" | "medium" | "high" | "critical";
 

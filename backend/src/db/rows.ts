@@ -8,12 +8,14 @@ export function formatDateColumn(v: unknown): string {
 }
 
 export function rowToMember(r: Record<string, unknown>): Member {
+  const rawRole = String(r.role);
+  const role: Member["role"] = rawRole === "admin" || rawRole === "lead" ? rawRole : "member";
   return {
     id: String(r.id),
     memberCode: String(r.member_code),
     fullName: String(r.full_name),
     email: String(r.email),
-    role: r.role as Member["role"],
+    role,
     team: String(r.team),
     status: r.status as Member["status"],
     deletedAt: r.deleted_at != null ? String(r.deleted_at) : undefined,

@@ -6,6 +6,7 @@ import {
   Avatar,
   Box,
   Button,
+  Checkbox,
   CircularProgress,
   Container,
   Dialog,
@@ -13,6 +14,7 @@ import {
   DialogContent,
   DialogTitle,
   Drawer,
+  FormControlLabel,
   Grid,
   InputAdornment,
   MenuItem,
@@ -39,6 +41,7 @@ import {
 import { io } from "socket.io-client";
 import type { Member, Project, Task } from "@shared/types/domain";
 import {
+  createAccountAsAdmin,
   createTask,
   createMember,
   createProject,
@@ -77,6 +80,7 @@ import {
 import type { ColumnDef } from "@tanstack/react-table";
 import { format } from "date-fns";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { isAppAdminEmail } from "@/lib/app-admin";
 import { mergeTasksPreserveRefs } from "@/lib/task-merge";
@@ -386,12 +390,23 @@ function AppHeaderAuth() {
 
 export default function DashboardClient() {
   const queryClient = useQueryClient();
+  const router = useRouter();
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     queueMicrotask(() => setMounted(true));
   }, []);
   const { user } = useAuth();
+  useEffect(() => {
+    if (user?.mustChangePassword) {
+      router.replace("/change-password");
+    }
+  }, [router, user?.mustChangePassword]);
   const [activeTab, setActiveTab] = useState(0);
+  useEffect(() => {
+    if (activeTab === 4 && !(user && user.role === "admin")) {
+      setActiveTab(0);
+    }
+  }, [activeTab, user]);
   const [selectedTeam, setSelectedTeam] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editMember, setEditMember] = useState<Member | null>(null);
@@ -461,6 +476,16 @@ export default function DashboardClient() {
     priority: "medium",
     plannedStartDate: "",
   });
+  const [accountForm, setAccountForm] = useState({
+    fullName: "",
+    email: "",
+    role: "member" as Member["role"],
+    team: "Server API Team",
+    password: "",
+    mustChangePassword: true,
+  });
+  const [accountCreateError, setAccountCreateError] = useState<string | null>(null);
+  const [accountCreateSuccess, setAccountCreateSuccess] = useState<string | null>(null);
 
   editTaskRef.current = editTask;
   taskDrawerOpenRef.current = taskDrawerOpen;
@@ -654,7 +679,12 @@ export default function DashboardClient() {
   const isTaskRowFlashing = useCallback((taskId: string) => remoteFlashTaskIds.has(taskId), [remoteFlashTaskIds]);
 
   const canMutateTasks = Boolean(user);
-  const canMutateMembersProjects = Boolean(user) && isAppAdminEmail(user?.email);
+  const canManageAccounts = user?.role === "admin";
+  const canManageMembers =
+    Boolean(user) && (user?.role === "admin" || user?.role === "lead" || isAppAdminEmail(user?.email));
+  const canManageProjects =
+    Boolean(user) && (user?.role === "admin" || isAppAdminEmail(user?.email));
+  const canExportTasks = canManageMembers;
 
   /** Patch one task in every cached task list (flat + infinite pages) so Dashboard KPIs and Tasks tab stay in sync. */
   const patchTaskInAllTaskQueries = useCallback((taskId: string, patch: Partial<Task>) => {
@@ -697,6 +727,27 @@ export default function DashboardClient() {
     mutationFn: deleteMember,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["members"] });
+    },
+  });
+  const createAccountMutation = useMutation({
+    mutationFn: createAccountAsAdmin,
+    onSuccess: async (result) => {
+      setAccountCreateError(null);
+      setAccountCreateSuccess(`Account ${result.account.email} created successfully.`);
+      setAccountForm({
+        fullName: "",
+        email: "",
+        role: "member",
+        team: "Server API Team",
+        password: "",
+        mustChangePassword: true,
+      });
+      await queryClient.invalidateQueries({ queryKey: ["members"] });
+    },
+    onError: (error) => {
+      const message = error instanceof Error ? error.message : "Failed to create account";
+      setAccountCreateError(message);
+      setAccountCreateSuccess(null);
     },
   });
   const createTaskMutation = useMutation({
@@ -1096,12 +1147,12 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL and redeplo
       ),
       cell: ({ row }) => (
         <Box sx={{ width: "100%", display: "flex", justifyContent: "flex-end" }}>
-          {canMutateMembersProjects ? (
+          {canManageMembers ? (
             <Stack direction="row" spacing={1}>
               <Button
                 size="small"
                 onClick={() => {
-                  if (!canMutateMembersProjects) return;
+                  if (!canManageMembers) return;
                   setEditMember(row.original);
                   setMemberForm({
                     fullName: row.original.fullName,
@@ -1121,7 +1172,7 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL and redeplo
                 size="small"
                 color="error"
                 onClick={() => {
-                  if (!canMutateMembersProjects) return;
+                  if (!canManageMembers) return;
                   deleteMemberMutation.mutate(row.original.id);
                 }}
               >
@@ -1149,12 +1200,12 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL and redeplo
       ),
       cell: ({ row }) => (
         <Box sx={{ width: "100%", display: "flex", justifyContent: "flex-end" }}>
-          {canMutateMembersProjects ? (
+          {canManageProjects ? (
             <Stack direction="row" spacing={1}>
               <Button
                 size="small"
                 onClick={() => {
-                  if (!canMutateMembersProjects) return;
+                  if (!canManageProjects) return;
                   setEditProject(row.original);
                   setProjectForm({
                     name: row.original.name,
@@ -1172,7 +1223,7 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL and redeplo
                 size="small"
                 color="error"
                 onClick={() => {
-                  if (!canMutateMembersProjects) return;
+                  if (!canManageProjects) return;
                   deleteProjectMutation.mutate(row.original.id);
                 }}
               >
@@ -1225,6 +1276,7 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL and redeplo
               <Tab label="Members" id="main-tab-1" />
               <Tab label="Projects" id="main-tab-2" />
               <Tab label="Tasks" id="main-tab-3" />
+              {canManageAccounts ? <Tab label="Accounts" id="main-tab-4" /> : null}
             </Tabs>
           </Box>
         </AppBar>
@@ -1501,11 +1553,11 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL and redeplo
               <>
                 <Stack direction="row" justifyContent="space-between" alignItems="center">
                   <Typography variant="h5">Members</Typography>
-                  {canMutateMembersProjects ? (
+                  {canManageMembers ? (
                     <Button
                       variant="contained"
                       onClick={() => {
-                        if (!canMutateMembersProjects) return;
+                        if (!canManageMembers) return;
                         setEditMember(null);
                         setMemberForm({
                           fullName: "",
@@ -1532,11 +1584,11 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL and redeplo
               <>
                 <Stack direction="row" justifyContent="space-between" alignItems="center">
                   <Typography variant="h5">Projects</Typography>
-                  {canMutateMembersProjects ? (
+                  {canManageProjects ? (
                     <Button
                       variant="contained"
                       onClick={() => {
-                        if (!canMutateMembersProjects) return;
+                        if (!canManageProjects) return;
                         setEditProject(null);
                         setProjectForm(DEFAULT_PROJECT_FORM);
                         setProjectFormInputKey((k) => k + 1);
@@ -1562,11 +1614,11 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL and redeplo
                 <Stack direction="row" justifyContent="space-between" alignItems="center">
                   <Typography variant="h5">Tasks</Typography>
                   <Stack direction="row" spacing={1}>
-                    {canMutateMembersProjects ? (
+                    {canExportTasks ? (
                       <Button
                         variant="outlined"
                         onClick={() => {
-                          if (!canMutateMembersProjects) return;
+                          if (!canExportTasks) return;
                           void exportTasksToXLSX(taskTableRows, timelineMonthDays);
                         }}
                         disabled={taskTableRows.length === 0}
@@ -1615,6 +1667,124 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL and redeplo
                 {taskTableRows.length === 0 ? <Alert severity="info">No tasks match the current filters.</Alert> : null}
               </>
             ) : null}
+
+            {activeTab === 4 && canManageAccounts ? (
+              <>
+                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                  <Typography variant="h5">Create Account</Typography>
+                </Stack>
+                <Box className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-300 hover:shadow-md">
+                  <Stack spacing={2}>
+                    <TextField
+                      label="Full name"
+                      value={accountForm.fullName}
+                      onChange={(event) =>
+                        setAccountForm((prev) => ({ ...prev, fullName: event.target.value }))
+                      }
+                    />
+                    <TextField
+                      label="Email"
+                      type="email"
+                      value={accountForm.email}
+                      onChange={(event) =>
+                        setAccountForm((prev) => ({ ...prev, email: event.target.value }))
+                      }
+                    />
+                    <TextField
+                      label="Password"
+                      type="password"
+                      value={accountForm.password}
+                      onChange={(event) =>
+                        setAccountForm((prev) => ({ ...prev, password: event.target.value }))
+                      }
+                      helperText="Minimum 6 characters"
+                    />
+                    <TextField
+                      select
+                      label="Role"
+                      value={accountForm.role}
+                      onChange={(event) =>
+                        setAccountForm((prev) => ({
+                          ...prev,
+                          role: event.target.value as Member["role"],
+                        }))
+                      }
+                    >
+                      <MenuItem value="admin">admin</MenuItem>
+                      <MenuItem value="lead">lead</MenuItem>
+                      <MenuItem value="member">member</MenuItem>
+                    </TextField>
+                    <TextField
+                      select
+                      label="Team"
+                      value={accountForm.team}
+                      onChange={(event) =>
+                        setAccountForm((prev) => ({ ...prev, team: event.target.value }))
+                      }
+                    >
+                      <MenuItem value="Mobile Team">Mobile Team</MenuItem>
+                      <MenuItem value="OS Team">OS Team</MenuItem>
+                      <MenuItem value="Tester Team">Tester Team</MenuItem>
+                      <MenuItem value="Tablet Team">Tablet Team</MenuItem>
+                      <MenuItem value="Web Team">Web Team</MenuItem>
+                      <MenuItem value="Passthrough Team">Passthrough Team</MenuItem>
+                      <MenuItem value="Server API Team">Server API Team</MenuItem>
+                    </TextField>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={accountForm.mustChangePassword}
+                          onChange={(event) =>
+                            setAccountForm((prev) => ({
+                              ...prev,
+                              mustChangePassword: event.target.checked,
+                            }))
+                          }
+                        />
+                      }
+                      label="Require password change at first login"
+                    />
+                    <Button
+                      variant="contained"
+                      disabled={createAccountMutation.isPending}
+                      onClick={() => {
+                        const fullName = accountForm.fullName.trim();
+                        const email = accountForm.email.trim();
+                        if (!fullName || !email) {
+                          setAccountCreateError("Full name and email are required.");
+                          setAccountCreateSuccess(null);
+                          return;
+                        }
+                        if (!email.includes("@")) {
+                          setAccountCreateError("Email format is invalid.");
+                          setAccountCreateSuccess(null);
+                          return;
+                        }
+                        if (accountForm.password.length < 6) {
+                          setAccountCreateError("Password must be at least 6 characters.");
+                          setAccountCreateSuccess(null);
+                          return;
+                        }
+                        setAccountCreateError(null);
+                        setAccountCreateSuccess(null);
+                        createAccountMutation.mutate({
+                          fullName,
+                          email,
+                          role: accountForm.role,
+                          team: accountForm.team,
+                          password: accountForm.password,
+                          mustChangePassword: accountForm.mustChangePassword,
+                        });
+                      }}
+                    >
+                      {createAccountMutation.isPending ? "Creating..." : "Create account"}
+                    </Button>
+                    {accountCreateError ? <Alert severity="error">{accountCreateError}</Alert> : null}
+                    {accountCreateSuccess ? <Alert severity="success">{accountCreateSuccess}</Alert> : null}
+                  </Stack>
+                </Box>
+              </>
+            ) : null}
           </Stack>
         </Container>
       </Box>
@@ -1657,7 +1827,6 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL and redeplo
             </TextField>
             <TextField select label="Role" value={memberForm.role} onChange={(e) => setMemberForm((s) => ({ ...s, role: e.target.value as Member["role"] }))}>
               <MenuItem value="admin">admin</MenuItem>
-              <MenuItem value="pm">pm</MenuItem>
               <MenuItem value="lead">lead</MenuItem>
               <MenuItem value="member">member</MenuItem>
             </TextField>
@@ -1668,7 +1837,7 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL and redeplo
           <Button
             variant="contained"
             onClick={() => {
-              if (!canMutateMembersProjects) return;
+              if (!canManageMembers) return;
               const payload = {
                 ...memberForm,
                 fullName: (memberFullNameInputRef.current?.value ?? "").trim(),
@@ -1808,7 +1977,7 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL and redeplo
           <Button
             variant="contained"
             onClick={() => {
-              if (!canMutateMembersProjects) return;
+              if (!canManageProjects) return;
               const projectName = (projectNameInputRef.current?.value ?? "").trim();
               if (!projectName) {
                 setProjectErrors((s) => ({ ...s, name: "Name is required" }));

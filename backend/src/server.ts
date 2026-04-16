@@ -45,6 +45,12 @@ import { getPool, isPersistenceEnabled } from "./db/index.js";
 import { nextTaskCodeFromDb } from "./db/task-store.js";
 import { generateExcelReport, generatePdfReport } from "./report-generator.js";
 import { attachSocketIo, emitEntityUpdated } from "./realtime.js";
+import {
+  changePasswordWithCurrentPassword,
+  initializeAuthCredentials,
+  loginWithEmailPassword,
+  upsertAccountCredential,
+} from "./auth.js";
 
 const EXPORT_DIR = path.resolve(process.cwd(), "exports");
 const idempotencyCache = new Map<string, { status: "success"; reports: string[]; exportDir: string }>();
@@ -100,7 +106,7 @@ app.use(
   }),
 );
 
-type UserRole = "admin" | "pm" | "lead" | "member";
+type UserRole = "admin" | "lead" | "member";
 function requireRoles(allowed: UserRole[]) {
   return (req: express.Request, res: express.Response, next: express.NextFunction): void => {
     const role = (req.header("x-role") ?? "member") as UserRole;
@@ -118,6 +124,17 @@ function getRequiredParam(req: express.Request, key: string): string | undefined
     return undefined;
   }
   return value;
+}
+
+function nextMemberCode(memberCodes: string[]): string {
+  const nums = memberCodes
+    .map((code) => {
+      const m = /^MEM-(\d+)$/.exec(code);
+      return m?.[1] ? Number.parseInt(m[1], 10) : Number.NaN;
+    })
+    .filter((num) => Number.isFinite(num));
+  const maxNum = nums.length > 0 ? Math.max(...nums) : 0;
+  return `MEM-${String(maxNum + 1).padStart(3, "0")}`;
 }
 
 async function executeWithRetry<T>(task: () => Promise<T>, maxAttempts = 3): Promise<T> {
@@ -174,15 +191,97 @@ app.get("/health", async (_req, res) => {
   }
 });
 
+const loginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+});
+
+app.post("/auth/login", async (req, res) => {
+  const parsed = loginSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  const user = await loginWithEmailPassword(parsed.data.email, parsed.data.password);
+  if (!user) {
+    return res.status(401).json({ error: "Invalid email or password" });
+  }
+  return res.json({ user });
+});
+
+const changePasswordSchema = z
+  .object({
+    email: z.string().email(),
+    currentPassword: z.string().min(1),
+    newPassword: z.string().min(6),
+    confirmPassword: z.string().min(6),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    path: ["confirmPassword"],
+    message: "Password confirmation does not match",
+  });
+
+app.post("/auth/change-password", async (req, res) => {
+  const parsed = changePasswordSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  const user = await changePasswordWithCurrentPassword(
+    parsed.data.email,
+    parsed.data.currentPassword,
+    parsed.data.newPassword,
+  );
+  if (!user) {
+    return res.status(401).json({ error: "Invalid email or current password" });
+  }
+  return res.json({ user });
+});
+
+const adminCreateAccountSchema = z.object({
+  fullName: z.string().min(2),
+  email: z.string().email(),
+  role: z.enum(["admin", "lead", "member"]).default("member"),
+  team: z.string().min(1),
+  password: z.string().min(6),
+  mustChangePassword: z.boolean().default(true),
+});
+
+app.post("/auth/users", requireRoles(["admin"]), async (req, res) => {
+  const parsed = adminCreateAccountSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  const memberList = await getMembersForRead();
+  const duplicated = memberList.some(
+    (member) => member.email.toLowerCase() === parsed.data.email.toLowerCase(),
+  );
+  if (duplicated) return res.status(409).json({ error: "Duplicate email" });
+  const newCode = nextMemberCode(memberList.map((member) => member.memberCode));
+  const member = await createMember({
+    memberCode: newCode,
+    fullName: parsed.data.fullName,
+    email: parsed.data.email,
+    role: parsed.data.role,
+    team: parsed.data.team,
+    status: "active",
+  });
+  await upsertAccountCredential({
+    member,
+    password: parsed.data.password,
+    mustChangePassword: parsed.data.mustChangePassword,
+  });
+  emitEntityUpdated({ type: "members" });
+  return res.status(201).json({
+    member,
+    account: {
+      email: member.email,
+      mustChangePassword: parsed.data.mustChangePassword,
+    },
+  });
+});
+
 const memberCreateSchema = z.object({
   fullName: z.string().min(2),
   email: z.string().email(),
-  role: z.enum(["admin", "pm", "lead", "member"]),
+  role: z.enum(["admin", "lead", "member"]),
   team: z.string().min(1),
   status: z.enum(["active", "inactive"]).default("active"),
 });
 
-app.post("/members", requireRoles(["admin", "pm", "lead"]), async (req, res) => {
+app.post("/members", requireRoles(["admin", "lead"]), async (req, res) => {
   const parsed = memberCreateSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
@@ -193,12 +292,10 @@ app.post("/members", requireRoles(["admin", "pm", "lead"]), async (req, res) => 
   if (duplicated) return res.status(409).json({ error: "Duplicate email" });
 
   // Auto-generate memberCode: MEM-NNN (max current + 1)
-  const allCodes = memberList.map((m) => m.memberCode).filter((c) => c.startsWith("MEM-"));
-  const nums = allCodes.map((c) => parseInt(c.replace("MEM-", ""), 10)).filter((n) => !isNaN(n));
-  const maxNum = nums.length > 0 ? Math.max(...nums) : 0;
-  const newCode = `MEM-${String(maxNum + 1).padStart(3, "0")}`;
+  const newCode = nextMemberCode(memberList.map((member) => member.memberCode));
 
   const member = await createMember({ ...parsed.data, memberCode: newCode });
+  await initializeAuthCredentials();
   emitEntityUpdated({ type: "members" });
   return res.status(201).json(member);
 });
@@ -208,22 +305,24 @@ app.get("/members", async (_req, res) => {
 });
 
 const memberPatchSchema = memberCreateSchema.partial();
-app.patch("/members/:id", requireRoles(["admin", "pm", "lead"]), async (req, res) => {
+app.patch("/members/:id", requireRoles(["admin", "lead"]), async (req, res) => {
   const memberId = getRequiredParam(req, "id");
   if (!memberId) return res.status(400).json({ error: "Invalid member id" });
   const parsed = memberPatchSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
   const updated = await updateMember(memberId, parsed.data);
   if (!updated) return res.status(404).json({ error: "Member not found" });
+  await initializeAuthCredentials();
   emitEntityUpdated({ type: "members" });
   return res.json(updated);
 });
 
-app.delete("/members/:id", requireRoles(["admin", "pm", "lead"]), async (req, res) => {
+app.delete("/members/:id", requireRoles(["admin", "lead"]), async (req, res) => {
   const memberId = getRequiredParam(req, "id");
   if (!memberId) return res.status(400).json({ error: "Invalid member id" });
   const deleted = await softDeleteMember(memberId);
   if (!deleted) return res.status(404).json({ error: "Member not found" });
+  await initializeAuthCredentials();
   emitEntityUpdated({ type: "members" });
   return res.json({ status: "deleted", member: deleted });
 });
@@ -234,7 +333,7 @@ const projectCreateSchema = z.object({
   status: z.enum(["planning", "active", "on_hold", "completed", "canceled"]).default("active"),
 });
 
-app.post("/projects", requireRoles(["admin", "pm", "lead"]), async (req, res) => {
+app.post("/projects", requireRoles(["admin"]), async (req, res) => {
   const parsed = projectCreateSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
   if (parsed.data.ownerMemberId && !(await findMemberById(parsed.data.ownerMemberId))) {
@@ -256,7 +355,7 @@ app.get("/projects", async (_req, res) => {
 });
 
 const projectPatchSchema = projectCreateSchema.partial();
-app.patch("/projects/:id", requireRoles(["admin", "pm", "lead"]), async (req, res) => {
+app.patch("/projects/:id", requireRoles(["admin"]), async (req, res) => {
   const projectId = getRequiredParam(req, "id");
   if (!projectId) return res.status(400).json({ error: "Invalid project id" });
   const parsed = projectPatchSchema.safeParse(req.body);
@@ -270,7 +369,7 @@ app.patch("/projects/:id", requireRoles(["admin", "pm", "lead"]), async (req, re
   return res.json(updated);
 });
 
-app.delete("/projects/:id", requireRoles(["admin", "pm", "lead"]), async (req, res) => {
+app.delete("/projects/:id", requireRoles(["admin"]), async (req, res) => {
   const projectId = getRequiredParam(req, "id");
   if (!projectId) return res.status(400).json({ error: "Invalid project id" });
   const deleted = await softDeleteProject(projectId);
@@ -291,7 +390,7 @@ app.get("/projects/:id/members", (req, res) => {
   res.json(projectMembers.filter((item) => item.projectId === projectId));
 });
 
-app.post("/projects/:id/members", requireRoles(["admin", "pm", "lead"]), async (req, res) => {
+app.post("/projects/:id/members", requireRoles(["admin"]), async (req, res) => {
   const projectId = getRequiredParam(req, "id");
   if (!projectId) return res.status(400).json({ error: "Invalid project id" });
   const parsed = projectMemberSchema.safeParse(req.body);
@@ -309,7 +408,7 @@ app.post("/projects/:id/members", requireRoles(["admin", "pm", "lead"]), async (
   return res.status(201).json(assignment);
 });
 
-app.delete("/projects/:id/members/:memberId", requireRoles(["admin", "pm", "lead"]), (req, res) => {
+app.delete("/projects/:id/members/:memberId", requireRoles(["admin"]), (req, res) => {
   const projectId = getRequiredParam(req, "id");
   const memberId = getRequiredParam(req, "memberId");
   if (!projectId || !memberId) return res.status(400).json({ error: "Invalid params" });
@@ -328,7 +427,7 @@ const taskCreateSchema = z.object({
   plannedStartDate: z.string().optional(),
 });
 
-app.post("/tasks", requireRoles(["admin", "pm", "lead"]), async (req, res) => {
+app.post("/tasks", requireRoles(["admin", "lead"]), async (req, res) => {
   const parsed = taskCreateSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
   if (!(await findProjectById(parsed.data.projectId))) return res.status(400).json({ error: "projectId invalid" });
@@ -387,7 +486,7 @@ const taskPatchSchema = z
   })
   .strict();
 
-app.patch("/tasks/:id", requireRoles(["admin", "pm", "lead"]), async (req, res) => {
+app.patch("/tasks/:id", requireRoles(["admin", "lead"]), async (req, res) => {
   const taskId = getRequiredParam(req, "id");
   if (!taskId) return res.status(400).json({ error: "Invalid task id" });
   const parsed = taskPatchSchema.safeParse(req.body);
@@ -491,7 +590,7 @@ const reportExportSchema = z.object({
   periodEnd: z.string(),
 });
 
-app.post("/reports/weekly/export", requireRoles(["admin", "pm", "lead"]), async (req, res) => {
+app.post("/reports/weekly/export", requireRoles(["admin", "lead"]), async (req, res) => {
   const parsed = reportExportSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
   const idemKey = req.header("Idempotency-Key");
@@ -534,7 +633,7 @@ app.post("/reports/weekly/export", requireRoles(["admin", "pm", "lead"]), async 
   }
 });
 
-app.post("/reports/monthly/export", requireRoles(["admin", "pm", "lead"]), async (req, res) => {
+app.post("/reports/monthly/export", requireRoles(["admin", "lead"]), async (req, res) => {
   const parsed = reportExportSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
   const idemKey = req.header("Idempotency-Key");
@@ -622,6 +721,7 @@ attachSocketIo(httpServer, corsOrigin);
 
 async function start(): Promise<void> {
   await loadOrInitializePersistence();
+  await initializeAuthCredentials();
   httpServer.listen(port, host, () => {
     console.log(`Backend listening on http://${host}:${port}`);
   });

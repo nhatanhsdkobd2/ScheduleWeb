@@ -56,6 +56,28 @@ async function run() {
       deleted_at TIMESTAMPTZ NULL
     );
   `);
+    await client.query(`
+    CREATE TABLE IF NOT EXISTS auth_users (
+      id TEXT PRIMARY KEY,
+      member_id TEXT NOT NULL UNIQUE REFERENCES members (id) ON DELETE CASCADE,
+      email TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      must_change_password BOOLEAN NOT NULL DEFAULT TRUE,
+      password_changed_at TIMESTAMPTZ NULL,
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      deleted_at TIMESTAMPTZ NULL
+    );
+  `);
+    await client.query(`ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN NOT NULL DEFAULT TRUE;`);
+    await client.query(`ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMPTZ NULL;`);
+    await client.query(`
+    UPDATE auth_users
+    SET must_change_password = TRUE
+    WHERE password_changed_at IS NULL
+      AND must_change_password = FALSE;
+  `);
     await client.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS description TEXT;`);
     await client.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS category TEXT;`);
     await client.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS planned_start_date DATE;`);
@@ -72,6 +94,11 @@ async function run() {
   `);
     await client.query(`
     CREATE INDEX IF NOT EXISTS idx_tasks_filters ON tasks (project_id, assignee_member_id, status, due_date)
+      WHERE deleted_at IS NULL;
+  `);
+    await client.query(`
+    CREATE INDEX IF NOT EXISTS idx_auth_users_email_lower
+      ON auth_users (lower(email))
       WHERE deleted_at IS NULL;
   `);
     await client.query(`

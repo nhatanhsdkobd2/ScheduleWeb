@@ -6,7 +6,7 @@
 - Local:         http://localhost:3000
 - Network:       http://172.16.49.60:3000
 - Environments: .env.local
-✓ Ready in 178ms
+✓ Ready in 182ms
 ⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
  We detected multiple lockfiles and selected the directory of /Users/full-stack-sdk01/package-lock.json as the root directory.
  To silence this warning, set `turbopack.root` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
@@ -16,20 +16,18 @@
 
 ⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
 
-○ Compiling / ...
- GET / 200 in 2.1s (next.js: 1808ms, application-code: 297ms)
- GET / 200 in 3.5s (next.js: 3.3s, application-code: 271ms)
- GET / 200 in 56ms (next.js: 6ms, application-code: 50ms)
- GET /login 200 in 318ms (next.js: 223ms, proxy.ts: 74ms, application-code: 21ms)
- GET / 200 in 41ms (next.js: 7ms, application-code: 34ms)
- GET / 200 in 9ms (next.js: 1620µs, application-code: 8ms)
- GET /login 200 in 33ms (next.js: 5ms, proxy.ts: 7ms, application-code: 21ms)
- GET / 200 in 41ms (next.js: 5ms, application-code: 36ms)
- GET / 200 in 14ms (next.js: 2ms, application-code: 12ms)
-✓ Compiled in 34ms
-⚠ Fast Refresh had to perform a full reload when ./Downloads/ScheduleWebNew/frontend/src/lib/firebase.ts changed. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
-✓ Compiled in 30ms
- GET / 200 in 41ms (next.js: 7ms, application-code: 34ms)
+ GET / 200 in 2.1s (next.js: 1782ms, application-code: 286ms)
+ GET / 200 in 3.3s (next.js: 3.0s, application-code: 266ms)
+ GET /login 200 in 321ms (next.js: 230ms, proxy.ts: 71ms, application-code: 20ms)
+ GET / 200 in 24ms (next.js: 3ms, application-code: 21ms)
+ GET / 200 in 10ms (next.js: 1555µs, application-code: 8ms)
+⚠ Fast Refresh had to perform a full reload when ./Downloads/ScheduleWebNew/frontend/src/lib/api.ts changed. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+✓ Compiled in 42ms
+ GET / 200 in 42ms (next.js: 8ms, application-code: 34ms)
 ⚠ Fast Refresh had to perform a full reload when ./Downloads/ScheduleWebNew/frontend/src/context/AuthContext.tsx [app-client] (ecmascript) <locals> changed. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
- GET / 200 in 27ms (next.js: 1688µs, application-code: 25ms)
-✓ Compiled in 30ms
+ GET / 200 in 26ms (next.js: 1455µs, application-code: 24ms)
+✓ Compiled in 42ms
+✓ Compiled in 105ms
+✓ Compiled in 66ms
+✓ Compiled in 41ms
+✓ Compiled in 45ms

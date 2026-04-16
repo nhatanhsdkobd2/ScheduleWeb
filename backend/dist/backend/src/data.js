@@ -66,6 +66,17 @@ const DEFAULT_MEMBER_NAMES = [
     "Trần Nguyễn Hoàng Diễn",
     "Trương Việt Hưng",
 ];
+const MEMBER_EMAIL_OVERRIDES = {
+    "Trương Việt Hưng": "hung.truong@vn.innova.com",
+    "Trần Hữu Quang Trường": "truong.tran@vn.innova.com",
+    "Nguyễn Thái Dương": "duong.nguyen@vn.innova.com",
+    "Lương Nguyễn Bảo Châu": "chau.luong@vn.innova.com",
+};
+const MEMBER_ROLE_OVERRIDES_BY_EMAIL = {
+    "chau.luong@vn.innova.com": "lead",
+    "canh.nguyen@vn.innova.com": "lead",
+    "nguyen.pham@vn.innova.com": "lead",
+};
 function stripDiacritics(str) {
     return str
         .replace(/[àáạảãâầấậẩẫăằắặẳẵ]/gi, "a")
@@ -78,6 +89,9 @@ function stripDiacritics(str) {
         .replace(/Đ/gi, "D");
 }
 function normalizeEmail(fullName) {
+    const overridden = MEMBER_EMAIL_OVERRIDES[fullName];
+    if (overridden)
+        return overridden;
     // Format: {lastName}.{firstName}@vn.innova.com
     // e.g. "Hoàng Văn Nhật Anh" -> "anh.hoang@vn.innova.com"
     const parts = fullName.trim().split(/\s+/);
@@ -87,6 +101,42 @@ function normalizeEmail(fullName) {
     const lastName = stripDiacritics(parts[parts.length - 1] ?? "").toLowerCase();
     const firstName = stripDiacritics(parts[0] ?? "").toLowerCase();
     return `${lastName}.${firstName}@vn.innova.com`;
+}
+function normalizeEmailKey(email) {
+    return email.trim().toLowerCase();
+}
+function resolveRoleByEmail(email) {
+    return MEMBER_ROLE_OVERRIDES_BY_EMAIL[normalizeEmailKey(email)] ?? "member";
+}
+async function applyMemberEmailOverridesInDb() {
+    if (!isPersistenceEnabled())
+        return;
+    for (const [fullName, expectedEmail] of Object.entries(MEMBER_EMAIL_OVERRIDES)) {
+        const found = members.find((m) => m.fullName === fullName && !m.deletedAt);
+        if (!found)
+            continue;
+        if (found.email === expectedEmail)
+            continue;
+        const updated = await patchMemberInDb(found.id, { email: expectedEmail });
+        if (updated) {
+            found.email = updated.email;
+        }
+    }
+}
+async function applyMemberRoleOverridesInDb() {
+    if (!isPersistenceEnabled())
+        return;
+    for (const member of members) {
+        if (member.deletedAt)
+            continue;
+        const expectedRole = resolveRoleByEmail(member.email);
+        if (member.role === expectedRole)
+            continue;
+        const updated = await patchMemberInDb(member.id, { role: expectedRole });
+        if (updated) {
+            member.role = updated.role;
+        }
+    }
 }
 // ── Default project seed data ──────────────────────────────────────────────
 const DEFAULT_PROJECTS = [
@@ -304,7 +354,7 @@ function seedDefaultMembers() {
                 memberCode,
                 fullName,
                 email,
-                role: "member",
+                role: resolveRoleByEmail(email),
                 team: MEMBER_TEAMS[fullName] ?? "Server API Team",
                 status: "active",
             });
@@ -460,6 +510,8 @@ export async function loadOrInitializePersistence() {
     const pool = getPool();
     await hydrateMembersFromDb(pool, members);
     await hydrateProjectsFromDb(pool, projects);
+    await applyMemberEmailOverridesInDb();
+    await applyMemberRoleOverridesInDb();
     if (members.length === 0 || projects.length === 0) {
         getProjectsWithSeed();
         await persistAllMembersProjects(pool, members, projects);

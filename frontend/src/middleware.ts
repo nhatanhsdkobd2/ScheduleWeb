@@ -10,6 +10,10 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
+  if (pathname.startsWith("/change-password") && !hasSession) {
+    return NextResponse.redirect(new URL("/login", request.url));
+  }
+
   if (pathname === "/login" && hasSession) {
     return NextResponse.redirect(new URL("/", request.url));
   }
@@ -18,5 +22,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/login", "/dashboard", "/dashboard/:path*"],
+  matcher: ["/login", "/change-password", "/dashboard", "/dashboard/:path*"],
 };

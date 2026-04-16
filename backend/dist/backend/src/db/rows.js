@@ -7,12 +7,14 @@ export function formatDateColumn(v) {
     return s.length >= 10 ? s.slice(0, 10) : s;
 }
 export function rowToMember(r) {
+    const rawRole = String(r.role);
+    const role = rawRole === "admin" || rawRole === "lead" ? rawRole : "member";
     return {
         id: String(r.id),
         memberCode: String(r.member_code),
         fullName: String(r.full_name),
         email: String(r.email),
-        role: r.role,
+        role,
         team: String(r.team),
         status: r.status,
         deletedAt: r.deleted_at != null ? String(r.deleted_at) : undefined,

@@ -22,7 +22,7 @@ function displayName(user: { displayName: string | null; email: string | null })
   return "User";
 }
 
-export default function FirebaseDashboardPage() {
+export default function DashboardPage() {
   const { user, loading, signOutUser } = useAuth();
   const router = useRouter();
 
@@ -30,9 +30,12 @@ export default function FirebaseDashboardPage() {
     if (!loading && !user) {
       router.replace("/login");
     }
+    if (!loading && user?.mustChangePassword) {
+      router.replace("/change-password");
+    }
   }, [user, loading, router]);
 
-  if (loading || !user) {
+  if (loading || !user || user.mustChangePassword) {
     return (
       <Box display="flex" minHeight="100vh" alignItems="center" justifyContent="center">
         <CircularProgress />
