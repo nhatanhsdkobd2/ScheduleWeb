@@ -113,11 +113,49 @@ export function createTaskColumns(timelineMonthDays: Date[]): ColumnDef<TaskTabl
     {
       id: "projectName",
       header: "Project Name",
-      cell: ({ row }) => (
-        <Typography variant="body2" sx={{ minWidth: 120 }}>
-          {row.original.projectName}
-        </Typography>
-      ),
+      cell: ({ row, table }) => {
+        const m = meta(table);
+        const canEditThisTask = m.canEditTask(row.original.raw);
+        const isEditing =
+          m.activeTaskCell?.taskId === row.original.id && m.activeTaskCell.field === "project";
+        if (!isEditing) {
+          return (
+            <Typography
+              variant="body2"
+              sx={{ cursor: canEditThisTask ? "pointer" : "default", minWidth: 120 }}
+              onClick={() => {
+                if (canEditThisTask) m.setActiveTaskCell({ taskId: row.original.id, field: "project" });
+              }}
+            >
+              {row.original.projectName}
+            </Typography>
+          );
+        }
+        return (
+          <TextField
+            select
+            size="small"
+            variant="standard"
+            fullWidth
+            value={row.original.raw.projectId}
+            disabled={!canEditThisTask}
+            InputProps={{ disableUnderline: true }}
+            onChange={(e) => {
+              m.updateTaskMutate({ id: row.original.id, payload: { projectId: e.target.value } });
+              m.setActiveTaskCell(null);
+            }}
+            onBlur={() => m.setActiveTaskCell(null)}
+            autoFocus
+            sx={{ minWidth: 160, "& .MuiSelect-select": { py: 0.5 } }}
+          >
+            {m.projects.map((project) => (
+              <MenuItem key={project.id} value={project.id}>
+                {project.name}
+              </MenuItem>
+            ))}
+          </TextField>
+        );
+      },
     },
     {
       id: "title",

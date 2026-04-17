@@ -6,7 +6,7 @@
 - Local:         http://localhost:3000
 - Network:       http://192.168.1.11:3000
 - Environments: .env.local
-✓ Ready in 211ms
+✓ Ready in 216ms
 ⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
  We detected multiple lockfiles and selected the directory of /Users/full-stack-sdk01/package-lock.json as the root directory.
  To silence this warning, set `turbopack.root` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
@@ -17,162 +17,14 @@
 ⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
 
 ○ Compiling / ...
- GET / 200 in 3.6s (next.js: 3.3s, application-code: 263ms)
- GET / 200 in 42ms (next.js: 6ms, application-code: 36ms)
- GET / 200 in 39ms (next.js: 3ms, application-code: 37ms)
- GET /login 200 in 300ms (next.js: 212ms, proxy.ts: 71ms, application-code: 16ms)
- GET /change-password 200 in 225ms (next.js: 195ms, proxy.ts: 4ms, application-code: 26ms)
- GET /change-password 200 in 10ms (next.js: 983µs, proxy.ts: 1187µs, application-code: 8ms)
- GET / 200 in 21ms (next.js: 1586µs, application-code: 20ms)
- GET / 200 in 10ms (next.js: 1343µs, application-code: 8ms)
-✓ Compiled in 50ms
-[browser] Uncaught TypeError: m.canEditTask is not a function
-    at cell (src/components/task-table/task-table-columns.tsx:128:35)
-    at Set.forEach (<anonymous>)
-    at <unknown> (src/components/task-table/task-data-table.tsx:67:22)
-    at Array.map (<anonymous>)
-    at TaskRow (src/components/task-table/task-data-table.tsx:65:30)
-    at <unknown> (src/components/task-table/task-data-table.tsx:170:15)
-    at Array.map (<anonymous>)
-    at TaskDataTable (src/components/task-table/task-data-table.tsx:166:25)
-    at DashboardClient (src/components/dashboard-client.tsx:1674:25)
-    at Home (src/app/page.tsx:4:10)
-  126 |       cell: ({ row, table }) => {
-  127 |         const m = meta(table);
-> 128 |         const canEditThisTask = m.canEditTask(row.original.raw);
-      |                                   ^
-  129 |         return (
-  130 |           <Box sx={{ flexGrow: 1, minWidth: 420 }}>
-  131 |             <TaskDescriptionEditor
-✓ Compiled in 69ms
-⚠ Fast Refresh had to perform a full reload due to a runtime error.
- GET / 200 in 40ms (next.js: 6ms, application-code: 33ms)
-✓ Compiled in 29ms
- GET /login 200 in 39ms (next.js: 8ms, proxy.ts: 4ms, application-code: 26ms)
- GET /change-password 200 in 33ms (next.js: 4ms, proxy.ts: 4ms, application-code: 25ms)
- GET /change-password 200 in 14ms (next.js: 1709µs, proxy.ts: 1944µs, application-code: 10ms)
- GET / 200 in 23ms (next.js: 6ms, application-code: 18ms)
- GET / 200 in 9ms (next.js: 1027µs, application-code: 8ms)
- GET /login 200 in 28ms (next.js: 3ms, proxy.ts: 6ms, application-code: 19ms)
- GET /change-password 200 in 29ms (next.js: 2ms, proxy.ts: 3ms, application-code: 24ms)
- GET /change-password 200 in 13ms (next.js: 1775µs, proxy.ts: 2ms, application-code: 9ms)
- GET / 200 in 21ms (next.js: 1762µs, application-code: 19ms)
- GET / 200 in 10ms (next.js: 1514µs, application-code: 9ms)
- GET /login 200 in 31ms (next.js: 4ms, proxy.ts: 5ms, application-code: 22ms)
- GET / 200 in 28ms (next.js: 2ms, application-code: 25ms)
- GET / 200 in 11ms (next.js: 1095µs, application-code: 10ms)
-✓ Compiled in 67ms
-✓ Compiled in 78ms
-✓ Compiled in 63ms
- GET / 200 in 68ms (next.js: 11ms, application-code: 58ms)
-✓ Compiled in 63ms
-✓ Compiled in 64ms
- GET / 200 in 46ms (next.js: 8ms, application-code: 38ms)
- GET /login 200 in 44ms (next.js: 9ms, proxy.ts: 10ms, application-code: 24ms)
- GET /change-password 200 in 34ms (next.js: 4ms, proxy.ts: 4ms, application-code: 26ms)
- GET /change-password 200 in 15ms (next.js: 3ms, proxy.ts: 1595µs, application-code: 11ms)
- GET / 200 in 21ms (next.js: 3ms, application-code: 18ms)
- GET / 200 in 9ms (next.js: 947µs, application-code: 8ms)
-✓ Compiled in 54ms
-[browser] MUI: You have provided an out-of-range value `m-1776405287033-93` for the select component.
-Consider providing a value that matches one of the available options or ''.
-The available values are `m-1776404769078-0`, `m-1776404769078-1`, `m-1776404769078-2`, `m-1776404769078-3`, `m-1776404769078-4`, `m-1776404769079-5`, `m-1776404769079-6`, `m-1776404769079-7`, `m-1776404769079-8`, `m-1776404769079-9`, `m-1776404769079-10`, `m-1776404769079-11`, `m-1776404769079-12`, `m-1776404769079-13`, `m-1776404769079-14`, `m-1776404769079-15`, `m-1776404769079-16`, `m-1776404769079-17`, `m-1776404769079-18`, `m-1776404769079-19`, `m-1776404769079-20`, `m-1776404769079-21`, `m-1776404769079-22`, `m-1776404769079-23`, `m-1776404769079-24`, `m-1776406632129-145`.
-[browser] MUI: You have provided an out-of-range value `m-1776405287033-93` for the select component.
-Consider providing a value that matches one of the available options or ''.
-The available values are `m-1776404769078-0`, `m-1776404769078-1`, `m-1776404769078-2`, `m-1776404769078-3`, `m-1776404769078-4`, `m-1776404769079-5`, `m-1776404769079-6`, `m-1776404769079-7`, `m-1776404769079-8`, `m-1776404769079-9`, `m-1776404769079-10`, `m-1776404769079-11`, `m-1776404769079-12`, `m-1776404769079-13`, `m-1776404769079-14`, `m-1776404769079-15`, `m-1776404769079-16`, `m-1776404769079-17`, `m-1776404769079-18`, `m-1776404769079-19`, `m-1776404769079-20`, `m-1776404769079-21`, `m-1776404769079-22`, `m-1776404769079-23`, `m-1776404769079-24`, `m-1776406632129-145`.
-[browser] MUI: You have provided an out-of-range value `m-1776405287033-93` for the select component.
-Consider providing a value that matches one of the available options or ''.
-The available values are `m-1776404769078-0`, `m-1776404769078-1`, `m-1776404769078-2`, `m-1776404769078-3`, `m-1776404769078-4`, `m-1776404769079-5`, `m-1776404769079-6`, `m-1776404769079-7`, `m-1776404769079-8`, `m-1776404769079-9`, `m-1776404769079-10`, `m-1776404769079-11`, `m-1776404769079-12`, `m-1776404769079-13`, `m-1776404769079-14`, `m-1776404769079-15`, `m-1776404769079-16`, `m-1776404769079-17`, `m-1776404769079-18`, `m-1776404769079-19`, `m-1776404769079-20`, `m-1776404769079-21`, `m-1776404769079-22`, `m-1776404769079-23`, `m-1776404769079-24`, `m-1776406632129-145`.
-[browser] MUI: You have provided an out-of-range value `m-1776405287033-93` for the select component.
-Consider providing a value that matches one of the available options or ''.
-The available values are `m-1776404769078-0`, `m-1776404769078-1`, `m-1776404769078-2`, `m-1776404769078-3`, `m-1776404769078-4`, `m-1776404769079-5`, `m-1776404769079-6`, `m-1776404769079-7`, `m-1776404769079-8`, `m-1776404769079-9`, `m-1776404769079-10`, `m-1776404769079-11`, `m-1776404769079-12`, `m-1776404769079-13`, `m-1776404769079-14`, `m-1776404769079-15`, `m-1776404769079-16`, `m-1776404769079-17`, `m-1776404769079-18`, `m-1776404769079-19`, `m-1776404769079-20`, `m-1776404769079-21`, `m-1776404769079-22`, `m-1776404769079-23`, `m-1776404769079-24`, `m-1776406632129-145`.
-✓ Compiled in 58ms
- GET / 200 in 72ms (next.js: 16ms, application-code: 57ms)
- GET / 200 in 42ms (next.js: 4ms, application-code: 38ms)
- GET /login 200 in 34ms (next.js: 9ms, proxy.ts: 5ms, application-code: 20ms)
- GET /change-password 200 in 31ms (next.js: 5ms, proxy.ts: 3ms, application-code: 23ms)
- GET /change-password 200 in 13ms (next.js: 1331µs, proxy.ts: 1796µs, application-code: 10ms)
- GET /change-password 200 in 43ms (next.js: 4ms, proxy.ts: 5ms, application-code: 34ms)
- GET /change-password 200 in 15ms (next.js: 1304µs, proxy.ts: 2ms, application-code: 12ms)
- GET / 200 in 49ms (next.js: 5ms, application-code: 45ms)
- GET /change-password 200 in 25ms (next.js: 4ms, proxy.ts: 5ms, application-code: 16ms)
- GET /change-password 200 in 99ms (next.js: 46ms, proxy.ts: 21ms, application-code: 32ms)
- GET /change-password 200 in 137ms (next.js: 4ms, proxy.ts: 4ms, application-code: 129ms)
-✓ Compiled in 56ms
- GET /change-password 200 in 91ms (next.js: 33ms, proxy.ts: 13ms, application-code: 45ms)
- GET /change-password 200 in 21ms (next.js: 1055µs, proxy.ts: 1255µs, application-code: 19ms)
- GET /change-password 200 in 13ms (next.js: 1814µs, proxy.ts: 864µs, application-code: 11ms)
- GET /login 200 in 61ms (next.js: 22ms, proxy.ts: 4ms, application-code: 36ms)
- GET /login 200 in 15ms (next.js: 2ms, proxy.ts: 2ms, application-code: 11ms)
- GET /change-password 200 in 28ms (next.js: 2ms, proxy.ts: 3ms, application-code: 23ms)
- GET /change-password 200 in 13ms (next.js: 1258µs, proxy.ts: 2ms, application-code: 10ms)
- GET / 200 in 31ms (next.js: 10ms, application-code: 21ms)
- GET / 200 in 12ms (next.js: 3ms, application-code: 8ms)
- GET / 200 in 295ms (next.js: 10ms, application-code: 286ms)
- GET /change-password 200 in 40ms (next.js: 9ms, proxy.ts: 5ms, application-code: 27ms)
- GET / 200 in 14ms (next.js: 2ms, application-code: 12ms)
- GET /login 200 in 36ms (next.js: 7ms, proxy.ts: 6ms, application-code: 23ms)
- GET / 200 in 25ms (next.js: 3ms, application-code: 23ms)
- GET / 200 in 12ms (next.js: 1217µs, application-code: 10ms)
- GET /login 200 in 30ms (next.js: 5ms, proxy.ts: 5ms, application-code: 20ms)
-[browser] [auth] Email/password sign-in failed: Error: Invalid email or password
-    at requestJson (src/lib/api.ts:282:11)
-    at async loginWithEmailPassword (src/lib/api.ts:72:19)
-    at async AuthProvider.useCallback[signInWithPassword] (src/context/AuthContext.tsx:93:26)
-    at async handleLogin (src/app/login/page.tsx:31:28)
-  280 |       // ignore parse errors on error response
-  281 |     }
-> 282 |     throw new Error(message);
-      |           ^
-  283 |   }
-  284 |
-  285 |   return (await response.json()) as T; (src/app/login/page.tsx:36:15)
- GET / 200 in 27ms (next.js: 3ms, application-code: 24ms)
- GET / 200 in 12ms (next.js: 1224µs, application-code: 11ms)
- GET / 200 in 54ms (next.js: 6ms, application-code: 48ms)
- GET /login 200 in 33ms (next.js: 7ms, proxy.ts: 6ms, application-code: 21ms)
-[browser] [auth] Email/password sign-in failed: Error: Invalid email or password
-    at requestJson (src/lib/api.ts:282:11)
-    at async loginWithEmailPassword (src/lib/api.ts:72:19)
-    at async AuthProvider.useCallback[signInWithPassword] (src/context/AuthContext.tsx:93:26)
-    at async handleLogin (src/app/login/page.tsx:31:28)
-  280 |       // ignore parse errors on error response
-  281 |     }
-> 282 |     throw new Error(message);
-      |           ^
-  283 |   }
-  284 |
-  285 |   return (await response.json()) as T; (src/app/login/page.tsx:36:15)
-[browser] [auth] Email/password sign-in failed: Error: Invalid email or password
-    at requestJson (src/lib/api.ts:282:11)
-    at async loginWithEmailPassword (src/lib/api.ts:72:19)
-    at async AuthProvider.useCallback[signInWithPassword] (src/context/AuthContext.tsx:93:26)
-    at async handleLogin (src/app/login/page.tsx:31:28)
-  280 |       // ignore parse errors on error response
-  281 |     }
-> 282 |     throw new Error(message);
-      |           ^
-  283 |   }
-  284 |
-  285 |   return (await response.json()) as T; (src/app/login/page.tsx:36:15)
- GET /change-password 200 in 32ms (next.js: 3ms, proxy.ts: 4ms, application-code: 26ms)
- GET /change-password 200 in 15ms (next.js: 2ms, proxy.ts: 2ms, application-code: 10ms)
- GET /login 200 in 50ms (next.js: 4ms, proxy.ts: 5ms, application-code: 41ms)
- GET /login 200 in 20ms (next.js: 3ms, proxy.ts: 3ms, application-code: 15ms)
-✓ Compiled in 67ms
- GET /login 200 in 107ms (next.js: 46ms, proxy.ts: 25ms, application-code: 36ms)
- GET /login 200 in 141ms (next.js: 7ms, proxy.ts: 6ms, application-code: 128ms)
- GET /change-password 200 in 45ms (next.js: 13ms, proxy.ts: 4ms, application-code: 28ms)
- GET /change-password 200 in 13ms (next.js: 1321µs, proxy.ts: 1351µs, application-code: 10ms)
- GET / 200 in 28ms (next.js: 12ms, application-code: 16ms)
- GET /login 200 in 39ms (next.js: 6ms, proxy.ts: 5ms, application-code: 28ms)
- GET /change-password 200 in 44ms (next.js: 3ms, proxy.ts: 3ms, application-code: 38ms)
- GET /change-password 200 in 16ms (next.js: 1752µs, proxy.ts: 1713µs, application-code: 12ms)
- GET / 200 in 30ms (next.js: 5ms, application-code: 25ms)
- GET / 200 in 342ms (next.js: 70ms, application-code: 272ms)
- GET /login 200 in 76ms (next.js: 12ms, proxy.ts: 51ms, application-code: 12ms)
- GET /change-password 200 in 71ms (next.js: 22ms, proxy.ts: 4ms, application-code: 45ms)
- GET /change-password 200 in 18ms (next.js: 4ms, proxy.ts: 2ms, application-code: 12ms)
- GET / 200 in 29ms (next.js: 4ms, application-code: 25ms)
- GET /change-password 200 in 32ms (next.js: 5ms, proxy.ts: 5ms, application-code: 21ms)
- GET /login 200 in 31ms (next.js: 7ms, proxy.ts: 5ms, application-code: 20ms)
+ GET / 200 in 5.4s (next.js: 5.2s, application-code: 269ms)
+ GET / 200 in 41ms (next.js: 6ms, application-code: 35ms)
+ GET /login 200 in 337ms (next.js: 252ms, proxy.ts: 66ms, application-code: 18ms)
+ GET /change-password 200 in 243ms (next.js: 216ms, proxy.ts: 4ms, application-code: 23ms)
+ GET /change-password 200 in 12ms (next.js: 1142µs, proxy.ts: 1469µs, application-code: 9ms)
+ GET / 200 in 16ms (next.js: 2ms, application-code: 14ms)
+ GET / 200 in 59ms (next.js: 8ms, application-code: 51ms)
+ GET /login 200 in 41ms (next.js: 7ms, proxy.ts: 7ms, application-code: 26ms)
+ GET /change-password 200 in 35ms (next.js: 4ms, proxy.ts: 4ms, application-code: 27ms)
+ GET /change-password 200 in 15ms (next.js: 3ms, proxy.ts: 1682µs, application-code: 11ms)
+ GET / 200 in 11ms (next.js: 1696µs, application-code: 9ms)

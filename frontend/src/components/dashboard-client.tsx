@@ -901,6 +901,15 @@ export default function DashboardClient() {
     for (const mem of members) m.set(mem.id, mem);
     return m;
   }, [members]);
+  const resolvedCurrentMemberId = useMemo(() => {
+    if (!user) return "";
+    const byId = members.find((member) => member.id === user.id);
+    if (byId) return byId.id;
+    const email = user.email?.toLowerCase();
+    if (!email) return "";
+    const byEmail = members.find((member) => member.email.toLowerCase() === email);
+    return byEmail?.id ?? "";
+  }, [members, user]);
   const taskById = useMemo(() => {
     const map = new Map<string, Task>();
     for (const task of tasks) {
@@ -912,17 +921,17 @@ export default function DashboardClient() {
     (task: Task | undefined): boolean => {
       if (!user) return false;
       if (!task) return false;
-      if (user.role === "member") return task.assigneeMemberId === user.id;
+      if (user.role === "member") return Boolean(resolvedCurrentMemberId) && task.assigneeMemberId === resolvedCurrentMemberId;
       return true;
     },
-    [user],
+    [resolvedCurrentMemberId, user],
   );
   const assignableMembers = useMemo(() => {
     if (user?.role === "member") {
-      return members.filter((member) => member.id === user.id);
+      return members.filter((member) => member.id === resolvedCurrentMemberId);
     }
     return members;
-  }, [members, user?.id, user?.role]);
+  }, [members, resolvedCurrentMemberId, user?.role]);
 
   const commitProgress = useCallback(
     (taskId: string, value: number, currentProgress: number) => {
@@ -965,10 +974,40 @@ export default function DashboardClient() {
   const defaultMemberId = useMemo(
     () =>
       user?.role === "member"
-        ? (user.id ?? "")
+        ? (resolvedCurrentMemberId || members[0]?.id || "")
         : (members.find((m) => m.fullName === "Hoàng Văn Nhật Anh")?.id ?? members[0]?.id ?? ""),
-    [members, user?.id, user?.role],
+    [members, resolvedCurrentMemberId, user?.role],
   );
+
+  useEffect(() => {
+    const validMemberIds = new Set(members.map((member) => member.id));
+    const validProjectIds = new Set(projects.map((project) => project.id));
+    if (selectedMemberId !== "all" && !validMemberIds.has(selectedMemberId)) {
+      setSelectedMemberId("all");
+    }
+    if (selectedProjectId !== "all" && !validProjectIds.has(selectedProjectId)) {
+      setSelectedProjectId("all");
+    }
+    if (!taskDrawerOpen) return;
+    setTaskForm((prev) => {
+      const nextProjectId = validProjectIds.has(prev.projectId) ? prev.projectId : (defaultProjectId || "");
+      const nextAssigneeId = validMemberIds.has(prev.assigneeMemberId)
+        ? prev.assigneeMemberId
+        : (defaultMemberId || "");
+      if (nextProjectId === prev.projectId && nextAssigneeId === prev.assigneeMemberId) {
+        return prev;
+      }
+      return { ...prev, projectId: nextProjectId, assigneeMemberId: nextAssigneeId };
+    });
+  }, [
+    members,
+    projects,
+    selectedMemberId,
+    selectedProjectId,
+    taskDrawerOpen,
+    defaultProjectId,
+    defaultMemberId,
+  ]);
 
   const filteredMembers = useMemo(() => {
     const base = safeArray<Member>(members);
@@ -1108,6 +1147,7 @@ export default function DashboardClient() {
       canAssignAnyMember,
       canEditTask: (task: Task) => canEditTask(task),
       members,
+      projects,
       assignableMembers,
       timelineMonthDays,
       setActiveTaskCell,
@@ -1123,6 +1163,7 @@ export default function DashboardClient() {
       canAssignAnyMember,
       canEditTask,
       members,
+      projects,
       assignableMembers,
       timelineMonthDays,
       updateTaskMutate,
@@ -2063,7 +2104,7 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL and redeplo
                   const payload = {
                     ...taskForm,
                     title: (taskTitleInputRef.current?.value ?? "").trim(),
-                    assigneeMemberId: user?.role === "member" ? user.id : taskForm.assigneeMemberId,
+                    assigneeMemberId: user?.role === "member" ? (resolvedCurrentMemberId || taskForm.assigneeMemberId) : taskForm.assigneeMemberId,
                   };
                   const parsed = taskFormSchema.safeParse(payload);
                   if (!parsed.success) {

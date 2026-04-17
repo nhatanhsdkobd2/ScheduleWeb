@@ -1,8 +1,8 @@
-import type { Member, Task } from "@shared/types/domain";
+import type { Member, Project, Task } from "@shared/types/domain";
 
 export type ActiveTaskCellState = {
   taskId: string;
-  field: "assignee" | "start" | "complete" | "priority";
+  field: "project" | "assignee" | "start" | "complete" | "priority";
 } | null;
 
 export interface TaskTableMeta {
@@ -12,6 +12,7 @@ export interface TaskTableMeta {
   canAssignAnyMember: boolean;
   canEditTask: (task: Task) => boolean;
   members: Member[];
+  projects: Project[];
   assignableMembers: Member[];
   timelineMonthDays: Date[];
   setActiveTaskCell: (next: ActiveTaskCellState) => void;
@@ -25,7 +26,7 @@ export interface TaskTableMeta {
 export function getRowEditingField(
   rowId: string,
   active: ActiveTaskCellState,
-): "assignee" | "start" | "complete" | "priority" | null {
+): "project" | "assignee" | "start" | "complete" | "priority" | null {
   if (!active || active.taskId !== rowId) return null;
   return active.field;
 }

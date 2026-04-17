@@ -84,6 +84,15 @@ function getRequestAuth(req) {
         userEmail: normalizeOptionalHeader(req.header("x-user-email"))?.toLowerCase() ?? null,
     };
 }
+async function resolveActorMemberId(auth) {
+    if (auth.userEmail) {
+        const memberList = await getMembersForRead();
+        const matched = memberList.find((member) => member.email.toLowerCase() === auth.userEmail);
+        if (matched)
+            return matched.id;
+    }
+    return auth.userId;
+}
 function requireRoles(allowed) {
     return (req, res, next) => {
         const role = getRequestAuth(req).role;
@@ -405,10 +414,11 @@ app.post("/tasks", requireRoles(["admin", "lead", "member"]), async (req, res) =
     if (!(await findMemberById(parsed.data.assigneeMemberId)))
         return res.status(400).json({ error: "assigneeMemberId invalid" });
     if (auth.role === "member") {
-        if (!auth.userId) {
+        const actorMemberId = await resolveActorMemberId(auth);
+        if (!actorMemberId) {
             return res.status(403).json({ error: "Member context missing (x-user-id)" });
         }
-        if (parsed.data.assigneeMemberId !== auth.userId) {
+        if (parsed.data.assigneeMemberId !== actorMemberId) {
             return res.status(403).json({ error: "Members can only assign tasks to themselves" });
         }
     }
@@ -453,6 +463,7 @@ app.get("/tasks", async (_req, res) => {
 const taskPatchSchema = z
     .object({
     title: z.string().min(3).optional(),
+    projectId: z.string().optional(),
     assigneeMemberId: z.string().optional(),
     dueDate: z.string().optional(),
     plannedStartDate: z.string().optional(),
@@ -473,14 +484,18 @@ app.patch("/tasks/:id", requireRoles(["admin", "lead", "member"]), async (req, r
     const current = await findTaskById(taskId);
     if (!current)
         return res.status(404).json({ error: "Task not found" });
+    if (parsed.data.projectId && !(await findProjectById(parsed.data.projectId))) {
+        return res.status(400).json({ error: "projectId invalid" });
+    }
     if (auth.role === "member") {
-        if (!auth.userId) {
+        const actorMemberId = await resolveActorMemberId(auth);
+        if (!actorMemberId) {
             return res.status(403).json({ error: "Member context missing (x-user-id)" });
         }
-        if (current.assigneeMemberId !== auth.userId) {
+        if (current.assigneeMemberId !== actorMemberId) {
             return res.status(403).json({ error: "Members can only edit their own tasks" });
         }
-        if (parsed.data.assigneeMemberId && parsed.data.assigneeMemberId !== auth.userId) {
+        if (parsed.data.assigneeMemberId && parsed.data.assigneeMemberId !== actorMemberId) {
             return res.status(403).json({ error: "Members cannot reassign tasks to other members" });
         }
     }
