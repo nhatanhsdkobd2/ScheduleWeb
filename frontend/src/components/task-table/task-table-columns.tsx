@@ -428,32 +428,37 @@ export function createTaskColumns(timelineMonthDays: Date[]): ColumnDef<TaskTabl
       header: "Actions",
       cell: ({ row, table }) => {
         const m = meta(table);
-        if (!m.canMutateTasks) {
+        const canEditThisTask = m.canEditTask(row.original.raw);
+        if (!canEditThisTask) {
           return (
-            <Typography variant="body2" color="text.secondary">
-              —
-            </Typography>
+            <Box sx={{ width: "100%", display: "flex", justifyContent: "center" }}>
+              <Typography variant="body2" color="text.secondary">
+                —
+              </Typography>
+            </Box>
           );
         }
         return (
-          <MuiTooltip title="Delete task" arrow>
-            <IconButton
-              size="small"
-              color="error"
-              onClick={() => {
-                m.deleteTaskMutate(row.original.id);
-              }}
-              aria-label="Delete task"
-              sx={{ p: 0.5 }}
-            >
-              <Box
-                component="img"
-                src="/icon-task-delete.png"
-                alt="Delete task"
-                sx={{ width: 18, height: 18, display: "block" }}
-              />
-            </IconButton>
-          </MuiTooltip>
+          <Box sx={{ width: "100%", display: "flex", justifyContent: "center" }}>
+            <MuiTooltip title="Delete task" arrow>
+              <IconButton
+                size="small"
+                color="error"
+                onClick={() => {
+                  m.deleteTaskMutate(row.original.id);
+                }}
+                aria-label="Delete task"
+                sx={{ p: 0.5 }}
+              >
+                <Box
+                  component="img"
+                  src="/icon-task-delete.png"
+                  alt="Delete task"
+                  sx={{ width: 18, height: 18, display: "block" }}
+                />
+              </IconButton>
+            </MuiTooltip>
+          </Box>
         );
       },
     },

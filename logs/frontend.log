@@ -6,7 +6,7 @@
 - Local:         http://localhost:3000
 - Network:       http://192.168.1.11:3000
 - Environments: .env.local
-✓ Ready in 216ms
+✓ Ready in 220ms
 ⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
  We detected multiple lockfiles and selected the directory of /Users/full-stack-sdk01/package-lock.json as the root directory.
  To silence this warning, set `turbopack.root` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
@@ -17,25 +17,12 @@
 ⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
 
 ○ Compiling / ...
- GET / 200 in 5.4s (next.js: 5.2s, application-code: 269ms)
- GET / 200 in 41ms (next.js: 6ms, application-code: 35ms)
- GET /login 200 in 337ms (next.js: 252ms, proxy.ts: 66ms, application-code: 18ms)
- GET /change-password 200 in 243ms (next.js: 216ms, proxy.ts: 4ms, application-code: 23ms)
- GET /change-password 200 in 12ms (next.js: 1142µs, proxy.ts: 1469µs, application-code: 9ms)
- GET / 200 in 16ms (next.js: 2ms, application-code: 14ms)
- GET / 200 in 59ms (next.js: 8ms, application-code: 51ms)
- GET /login 200 in 41ms (next.js: 7ms, proxy.ts: 7ms, application-code: 26ms)
- GET /change-password 200 in 35ms (next.js: 4ms, proxy.ts: 4ms, application-code: 27ms)
- GET /change-password 200 in 15ms (next.js: 3ms, proxy.ts: 1682µs, application-code: 11ms)
- GET / 200 in 11ms (next.js: 1696µs, application-code: 9ms)
- GET / 200 in 57ms (next.js: 6ms, application-code: 51ms)
- GET / 200 in 56ms (next.js: 5ms, application-code: 51ms)
-⚠ Fast Refresh had to perform a full reload when ./Downloads/ScheduleWebNew/frontend/src/lib/api.ts changed. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
-✓ Compiled in 50ms
- GET / 200 in 42ms (next.js: 8ms, application-code: 34ms)
-✓ Compiled in 48ms
-✓ Compiled in 75ms
- GET / 200 in 71ms (next.js: 14ms, application-code: 57ms)
-✓ Compiled in 31ms
-✓ Compiled in 80ms
-✓ Compiled in 57ms
+ GET / 200 in 6.0s (next.js: 5.8s, application-code: 258ms)
+ GET / 200 in 813ms (next.js: 500ms, application-code: 313ms)
+ GET / 200 in 57ms (next.js: 5ms, application-code: 52ms)
+ GET /login 200 in 331ms (next.js: 238ms, proxy.ts: 76ms, application-code: 17ms)
+ GET /change-password 200 in 222ms (next.js: 200ms, proxy.ts: 3ms, application-code: 20ms)
+ GET /change-password 200 in 13ms (next.js: 951µs, proxy.ts: 1128µs, application-code: 11ms)
+ GET / 200 in 13ms (next.js: 3ms, application-code: 10ms)
+✓ Compiled in 54ms
+ GET / 200 in 62ms (next.js: 16ms, application-code: 46ms)

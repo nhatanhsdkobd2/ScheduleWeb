@@ -23,12 +23,12 @@ export default function LoginPage() {
   const toFriendlyLoginMessage = (raw: string): string => {
     const normalized = raw.trim().toLowerCase();
     if (normalized.includes("invalid email or password")) {
-      return "Email hoặc mật khẩu không đúng. Vui lòng kiểm tra và thử lại.";
+      return "Incorrect email or password. Please check and try again.";
     }
     if (normalized.includes("cannot connect to backend")) {
-      return "Không thể kết nối máy chủ. Vui lòng kiểm tra backend hoặc thử lại sau.";
+      return "Cannot connect to the server. Please check the backend or try again later.";
     }
-    return "Đăng nhập thất bại. Vui lòng thử lại.";
+    return "Sign in failed. Please try again.";
   };
 
   const handleLogin = async () => {

@@ -587,8 +587,20 @@ app.patch("/tasks/:id", requireRoles(["admin", "lead", "member"]), async (req, r
 });
 
 app.delete("/tasks/:id", requireRoles(["admin", "lead", "member"]), async (req, res) => {
+  const auth = getRequestAuth(req);
   const taskId = getRequiredParam(req, "id");
   if (!taskId) return res.status(400).json({ error: "Invalid task id" });
+  const current = await findTaskById(taskId);
+  if (!current) return res.status(404).json({ error: "Task not found" });
+  if (auth.role === "member") {
+    const actorMemberId = await resolveActorMemberId(auth);
+    if (!actorMemberId) {
+      return res.status(403).json({ error: "Member context missing (x-user-id)" });
+    }
+    if (current.assigneeMemberId !== actorMemberId) {
+      return res.status(403).json({ error: "Members can only delete their own tasks" });
+    }
+  }
   const deleted = await softDeleteTask(taskId);
   if (!deleted) return res.status(404).json({ error: "Task not found" });
   emitEntityUpdated({ type: "tasks", taskIds: [taskId] });

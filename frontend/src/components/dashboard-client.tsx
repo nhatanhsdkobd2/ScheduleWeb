@@ -976,10 +976,11 @@ export default function DashboardClient() {
   );
   const deleteTaskMutate = useCallback(
     (taskId: string) => {
-      if (!canMutateTasks) return;
+      const task = taskById.get(taskId);
+      if (!canEditTask(task)) return;
       setTaskDeleteConfirmId(taskId);
     },
-    [canMutateTasks],
+    [canEditTask, taskById],
   );
 
   /** Default IDs for new task creation */
