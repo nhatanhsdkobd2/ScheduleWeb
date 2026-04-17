@@ -32,3 +32,221 @@
  GET / 200 in 39ms (next.js: 1321µs, application-code: 38ms)
  GET / 200 in 24ms (next.js: 2ms, application-code: 22ms)
  GET / 200 in 13ms (next.js: 1107µs, application-code: 12ms)
+✓ Compiled in 0ms
+ GET / 200 in 187ms (next.js: 56ms, application-code: 131ms)
+ GET / 200 in 88ms (next.js: 39ms, application-code: 49ms)
+ GET / 200 in 24ms (next.js: 1449µs, application-code: 22ms)
+ GET / 200 in 12ms (next.js: 1808µs, application-code: 10ms)
+ GET / 200 in 350ms (next.js: 45ms, application-code: 306ms)
+✓ Compiled in 0ms
+[browser] React has detected a change in the order of Hooks called by DashboardClient. This will lead to bugs and errors if not fixed. For more information, read the Rules of Hooks: https://react.dev/link/rules-of-hooks
+
+   Previous render            Next render
+   ------------------------------------------------------
+1. useContext                 useContext
+2. useContext                 useContext
+3. useState                   useState
+4. useEffect                  useEffect
+5. useContext                 useContext
+6. useEffect                  useEffect
+7. useState                   useState
+8. useEffect                  useEffect
+9. useState                   useState
+10. useState                  useState
+11. useState                  useState
+12. useState                  useState
+13. useState                  useState
+14. useState                  useState
+15. useRef                    useRef
+16. useState                  useState
+17. useRef                    useRef
+18. useRef                    useRef
+19. useState                  useState
+20. useRef                    useRef
+21. useState                  useState
+22. useState                  useState
+23. useState                  useState
+24. useState                  useState
+25. useState                  useState
+26. useState                  useState
+27. useState                  useState
+28. useState                  useState
+29. useState                  useState
+30. useState                  useState
+31. useState                  useState
+32. useState                  useState
+33. useState                  useState
+34. useRef                    useRef
+35. useRef                    useRef
+36. useRef                    useRef
+37. useRef                    useRef
+38. useRef                    useRef
+39. useRef                    useRef
+40. useRef                    useRef
+41. useState                  useState
+42. useState                  useState
+43. useState                  useState
+44. useState                  useState
+45. useState                  useState
+46. useState                  useState
+47. useState                  useState
+48. useState                  useState
+49. useMemo                   useMemo
+50. useContext                useContext
+51. useContext                useContext
+52. useContext                useContext
+53. useEffect                 useEffect
+54. useState                  useState
+55. useCallback               useCallback
+56. useSyncExternalStore      useSyncExternalStore
+57. useEffect                 useEffect
+58. useContext                useContext
+59. useContext                useContext
+60. useContext                useContext
+61. useEffect                 useEffect
+62. useState                  useState
+63. useCallback               useCallback
+64. useSyncExternalStore      useSyncExternalStore
+65. useEffect                 useEffect
+66. useMemo                   useMemo
+67. useContext                useContext
+68. useContext                useContext
+69. useContext                useContext
+70. useEffect                 useEffect
+71. useState                  useState
+72. useCallback               useCallback
+73. useSyncExternalStore      useSyncExternalStore
+74. useEffect                 useEffect
+75. useContext                useContext
+76. useContext                useContext
+77. useContext                useContext
+78. useEffect                 useEffect
+79. useState                  useState
+80. useCallback               useCallback
+81. useSyncExternalStore      useSyncExternalStore
+82. useEffect                 useEffect
+83. useEffect                 useEffect
+84. useCallback               useCallback
+85. useEffect                 useEffect
+86. useCallback               useCallback
+87. useCallback               useCallback
+88. useContext                useContext
+89. useState                  useState
+90. useEffect                 useEffect
+91. useCallback               useCallback
+92. useSyncExternalStore      useSyncExternalStore
+93. useCallback               useCallback
+94. useContext                useContext
+95. useState                  useState
+96. useEffect                 useEffect
+97. useCallback               useCallback
+98. useSyncExternalStore      useSyncExternalStore
+99. useCallback               useCallback
+100. useContext               useContext
+101. useState                 useState
+102. useEffect                useEffect
+103. useCallback              useCallback
+104. useSyncExternalStore     useSyncExternalStore
+105. useCallback              useCallback
+106. useContext               useContext
+107. useState                 useState
+108. useEffect                useEffect
+109. useCallback              useCallback
+110. useSyncExternalStore     useSyncExternalStore
+111. useCallback              useCallback
+112. useContext               useContext
+113. useState                 useState
+114. useEffect                useEffect
+115. useCallback              useCallback
+116. useSyncExternalStore     useSyncExternalStore
+117. useCallback              useCallback
+118. useContext               useContext
+119. useState                 useState
+120. useEffect                useEffect
+121. useCallback              useCallback
+122. useSyncExternalStore     useSyncExternalStore
+123. useCallback              useCallback
+124. useContext               useContext
+125. useState                 useState
+126. useEffect                useEffect
+127. useCallback              useCallback
+128. useSyncExternalStore     useSyncExternalStore
+129. useCallback              useCallback
+130. useContext               useContext
+131. useState                 useState
+132. useEffect                useEffect
+133. useCallback              useCallback
+134. useSyncExternalStore     useSyncExternalStore
+135. useCallback              useCallback
+136. useContext               useContext
+137. useState                 useState
+138. useEffect                useEffect
+139. useCallback              useCallback
+140. useSyncExternalStore     useSyncExternalStore
+141. useCallback              useCallback
+142. useContext               useContext
+143. useState                 useState
+144. useEffect                useEffect
+145. useCallback              useCallback
+146. useSyncExternalStore     useSyncExternalStore
+147. useCallback              useCallback
+148. useMemo                  useMemo
+149. useEffect                useEffect
+150. useMemo                  useMemo
+151. useMemo                  useMemo
+152. useMemo                  useMemo
+153. useMemo                  useMemo
+154. useMemo                  useMemo
+155. useMemo                  useMemo
+156. useMemo                  useMemo
+157. useCallback              useCallback
+158. useMemo                  useMemo
+159. useCallback              useCallback
+160. useCallback              useCallback
+161. useCallback              useCallback
+162. useCallback              useCallback
+163. useMemo                  useMemo
+164. useMemo                  useMemo
+165. useEffect                useEffect
+166. useMemo                  useMemo
+167. useMemo                  useMemo
+168. useMemo                  useMemo
+169. useMemo                  useMemo
+170. useMemo                  useMemo
+171. useMemo                  useMemo
+172. useMemo                  useMemo
+173. useMemo                  useMemo
+174. useMemo                  useMemo
+175. useMemo                  useMemo
+176. useMemo                  useMemo
+177. useMemo                  useMemo
+178. useMemo                  useMemo
+179. undefined                useMemo
+   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+    at DashboardClient (src/components/dashboard-client.tsx:1427:27)
+  1425 |     },
+  1426 |   ];
+> 1427 |   const mainTabs = useMemo(() => {
+       |                           ^
+  1428 |     const tabs = [
+  1429 |       { id: 0, label: "Dashboard" },
+  1430 |       { id: 1, label: "Members" }, (src/components/dashboard-client.tsx:1427:27)
+[browser] Uncaught Error: Rendered more hooks than during the previous render.
+    at DashboardClient (src/components/dashboard-client.tsx:1427:27)
+    at Home (src/app/page.tsx:4:10)
+  1425 |     },
+  1426 |   ];
+> 1427 |   const mainTabs = useMemo(() => {
+       |                           ^
+  1428 |     const tabs = [
+  1429 |       { id: 0, label: "Dashboard" },
+  1430 |       { id: 1, label: "Members" },
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+✓ Compiled in 67ms
+ GET / 200 in 37ms (next.js: 4ms, application-code: 33ms)
+ GET / 200 in 43ms (next.js: 4ms, application-code: 40ms)
+✓ Compiled in 59ms
+ GET / 200 in 56ms (next.js: 10ms, application-code: 46ms)
+✓ Compiled in 47ms
+✓ Compiled in 44ms

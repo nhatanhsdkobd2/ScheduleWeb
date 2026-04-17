@@ -21,8 +21,6 @@ import {
   Menu,
   MenuItem,
   Stack,
-  Tab,
-  Tabs,
   TextField,
   Toolbar,
   Tooltip as MuiTooltip,
@@ -32,6 +30,7 @@ import { useMemo, useState, useEffect, useCallback, useRef, type ReactNode } fro
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { AnimatePresence, LayoutGroup, motion } from "framer-motion";
 import {
   keepPreviousData,
   useInfiniteQuery,
@@ -761,7 +760,8 @@ export default function DashboardClient() {
   const canMutateTasks = Boolean(user);
   const canManageAllTasks = user?.role === "admin" || user?.role === "lead";
   const canAssignAnyMember = canManageAllTasks;
-  const canManageAccounts = user?.role === "admin";
+  const isDebugAdmin = false;
+  const canManageAccounts = Boolean(user) && (user?.role === "admin" || isDebugAdmin);
   const canManageMembers =
     Boolean(user) && (user?.role === "admin" || user?.role === "lead" || isAppAdminEmail(user?.email));
   const canManageProjects =
@@ -1424,6 +1424,13 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL and redeplo
       ),
     },
   ];
+  const mainTabs = [
+    { id: 0, label: "Dashboard" },
+    { id: 1, label: "Members" },
+    { id: 2, label: "Projects" },
+    { id: 3, label: "Tasks" },
+    ...(canManageAccounts ? [{ id: 4, label: "Accounts" }] : []),
+  ];
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
@@ -1461,20 +1468,88 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL and redeplo
               bgcolor: "background.paper",
             }}
           >
-            <Tabs
-              value={activeTab}
-              onChange={(_, value) => setActiveTab(value)}
-              variant="scrollable"
-              scrollButtons="auto"
-              allowScrollButtonsMobile
-              aria-label="Main sections"
-            >
-              <Tab label="Dashboard" id="main-tab-0" />
-              <Tab label="Members" id="main-tab-1" />
-              <Tab label="Projects" id="main-tab-2" />
-              <Tab label="Tasks" id="main-tab-3" />
-              {canManageAccounts ? <Tab label="Accounts" id="main-tab-4" /> : null}
-            </Tabs>
+            <LayoutGroup id="dashboard-main-tabs">
+              <Box
+                role="tablist"
+                aria-label="Main sections"
+                sx={{
+                  display: "flex",
+                  alignItems: "stretch",
+                  gap: 0.5,
+                  overflowX: "auto",
+                  py: 0.5,
+                }}
+              >
+                {mainTabs.map((tab) => {
+                  const isActive = activeTab === tab.id;
+                  return (
+                    <Box
+                      key={tab.id}
+                      role="tab"
+                      id={`main-tab-${tab.id}`}
+                      aria-selected={isActive}
+                      aria-controls={`nav-panel-${tab.id}`}
+                      tabIndex={isActive ? 0 : -1}
+                      onClick={() => setActiveTab(tab.id)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          setActiveTab(tab.id);
+                        }
+                      }}
+                      sx={{
+                        position: "relative",
+                        px: 2,
+                        py: 1.25,
+                        minWidth: { xs: 96, sm: 112 },
+                        borderRadius: 1.5,
+                        cursor: "pointer",
+                        flexShrink: 0,
+                        color: isActive ? "primary.main" : "text.secondary",
+                        transition: "color 160ms ease",
+                        "&:hover": {
+                          color: isActive ? "primary.main" : "text.primary",
+                          backgroundColor: "rgba(15, 23, 42, 0.04)",
+                        },
+                      }}
+                    >
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          textAlign: "center",
+                          fontWeight: isActive ? 700 : 600,
+                          whiteSpace: "nowrap",
+                          letterSpacing: 0.1,
+                        }}
+                      >
+                        {tab.label}
+                      </Typography>
+                      {isActive ? (
+                        <motion.div
+                          layoutId="main-tab-indicator"
+                          transition={{
+                            type: "spring",
+                            stiffness: 560,
+                            damping: 42,
+                            mass: 0.35,
+                          }}
+                          style={{
+                            position: "absolute",
+                            left: 10,
+                            right: 10,
+                            bottom: 2,
+                            height: 3,
+                            borderRadius: 999,
+                            background: "#2563eb",
+                            boxShadow: "0 0 0 1px rgba(37, 99, 235, 0.08)",
+                          }}
+                        />
+                      ) : null}
+                    </Box>
+                  );
+                })}
+              </Box>
+            </LayoutGroup>
           </Box>
         </AppBar>
         <Container
@@ -1485,7 +1560,18 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL and redeplo
           role="tabpanel"
           aria-labelledby={`main-tab-${activeTab}`}
         >
-          <Stack spacing={3.5}>
+          <AnimatePresence initial={false} mode="wait">
+            <motion.div
+              key={`tab-panel-${activeTab}`}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{
+                duration: 0.2,
+                ease: [0.2, 0.8, 0.2, 1],
+              }}
+            >
+              <Stack spacing={3.5}>
             {/* Filter — Dashboard tab: Due from / Due to only */}
             {activeTab === 0 && (
               <Box className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-300 hover:shadow-md">
@@ -1993,7 +2079,9 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL and redeplo
                 </Box>
               </>
             ) : null}
-          </Stack>
+              </Stack>
+            </motion.div>
+          </AnimatePresence>
         </Container>
       </Box>
 
