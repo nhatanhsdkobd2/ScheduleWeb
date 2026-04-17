@@ -1,12 +1,42 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { AppBar, Box, Button, CircularProgress, Container, Stack, TextField, Toolbar, Typography } from "@mui/material";
+import { AppBar, Box, Button, CircularProgress, Container, Stack, TextField, Toolbar, Typography, useTheme } from "@mui/material";
+import { motion } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
+
+function ActionIconMotion({
+  children,
+  strong = false,
+}: {
+  children: ReactNode;
+  strong?: boolean;
+}) {
+  const [spinCount, setSpinCount] = useState(0);
+  const rotateBy = strong ? 540 : 360;
+  return (
+    <motion.div
+      onClick={() => setSpinCount((prev) => prev + 1)}
+      animate={{
+        rotate: spinCount * rotateBy,
+        scale: spinCount === 0 ? 1 : [1, 0.82, 1],
+      }}
+      transition={{
+        rotate: { type: "spring", stiffness: 300, damping: 15 },
+        scale: { duration: 0.2 },
+      }}
+      whileTap={{ scale: 0.85 }}
+      style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}
+    >
+      {children}
+    </motion.div>
+  );
+}
 
 export default function ChangePasswordPage() {
   const { user, loading, changeMyPassword, signOutUser } = useAuth();
+  const theme = useTheme();
   const router = useRouter();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -60,9 +90,17 @@ export default function ChangePasswordPage() {
   }
 
   return (
-    <Box sx={{ minHeight: "100vh", bgcolor: "#fff" }}>
+    <Box sx={{ minHeight: "100vh", bgcolor: "background.default", color: "text.primary" }}>
       <AppBar position="static" color="inherit" elevation={0}>
-        <Toolbar className="border-b border-slate-200/80 bg-white/95 backdrop-blur" sx={{ justifyContent: "flex-start" }}>
+        <Toolbar
+          sx={{
+            justifyContent: "flex-start",
+            borderBottom: 1,
+            borderColor: "divider",
+            bgcolor: theme.palette.mode === "dark" ? "rgba(17, 17, 17, 0.92)" : "rgba(255, 255, 255, 0.95)",
+            backdropFilter: "blur(8px)",
+          }}
+        >
           <Stack direction="row" spacing={1.5} alignItems="center">
             <Box
               component="img"
@@ -71,10 +109,10 @@ export default function ChangePasswordPage() {
               sx={{ height: 40, width: "auto", display: "block" }}
             />
             <Box>
-              <Typography fontWeight={800} className="text-slate-900">
+              <Typography fontWeight={800} color="text.primary">
                 {"Software team's work schedule"}
               </Typography>
-              <Typography variant="caption" className="text-slate-500">
+              <Typography variant="caption" color="text.secondary">
                 {"Thuan Ngo's Software Team"}
               </Typography>
             </Box>
@@ -122,14 +160,36 @@ export default function ChangePasswordPage() {
             fullWidth
           />
           <Stack direction="row" spacing={1.5}>
-            <Button variant="contained" disabled={submitting} onClick={() => void handleChangePassword()}>
+            <Button
+              variant="contained"
+              disabled={submitting}
+              onClick={() => void handleChangePassword()}
+              sx={{ display: "inline-flex", alignItems: "center", gap: 0.75 }}
+            >
+              <ActionIconMotion>
+                <Box
+                  component="img"
+                  src="/icon-change-password.png"
+                  alt=""
+                  sx={{ width: 18, height: 18, filter: "brightness(0) invert(1)" }}
+                />
+              </ActionIconMotion>
               {submitting ? "Saving..." : "Update password"}
             </Button>
             <Button
               variant="text"
               color="inherit"
+              sx={{ display: "inline-flex", alignItems: "center", gap: 0.75 }}
               onClick={() => void signOutUser().then(() => router.replace("/login"))}
             >
+              <ActionIconMotion strong>
+                <Box
+                  component="img"
+                  src="/icon-logout.png"
+                  alt=""
+                  sx={{ width: 18, height: 18, filter: theme.palette.mode === "dark" ? "brightness(0) invert(1)" : "none" }}
+                />
+              </ActionIconMotion>
               Logout
             </Button>
           </Stack>

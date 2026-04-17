@@ -181,14 +181,22 @@ function DateFilterField({
   onChange: (value: string) => void;
   minWidth?: number;
 }) {
+  const [calendarIconRotation, setCalendarIconRotation] = useState(0);
   function CalendarOpenIcon() {
     return (
-      <Box
-        component="img"
-        src="/icon-calendar-custom.png"
-        alt=""
-        sx={{ width: 20, height: 20, display: "block" }}
-      />
+      <motion.div
+        animate={{ rotate: calendarIconRotation }}
+        transition={{ type: "spring", stiffness: 300, damping: 15 }}
+        whileTap={{ scale: 0.85 }}
+        style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}
+      >
+        <Box
+          component="img"
+          src="/icon-calendar-custom.png"
+          alt=""
+          sx={{ width: 20, height: 20, display: "block" }}
+        />
+      </motion.div>
     );
   }
   const theme = useTheme();
@@ -201,6 +209,7 @@ function DateFilterField({
       value={pickerValue}
       format="dd/MM/yyyy"
       reduceAnimations={false}
+      onOpen={() => setCalendarIconRotation((prev) => prev + 360)}
       onChange={(next) => {
         if (!next || Number.isNaN(next.getTime())) {
           onChange("");
@@ -438,6 +447,70 @@ function emailLocalPartFromInput(rawEmail: string): string {
   return trimmed;
 }
 
+type ActionIconSpinPreset = "normal" | "strong" | "add";
+
+function ActionIconMotion({
+  children,
+  preset = "normal",
+}: {
+  children: ReactNode;
+  preset?: ActionIconSpinPreset;
+}) {
+  const [spinCount, setSpinCount] = useState(0);
+  const rotateBy = preset === "strong" ? 540 : preset === "add" ? 180 : 360;
+  return (
+    <motion.div
+      onClick={() => setSpinCount((prev) => prev + 1)}
+      animate={{
+        rotate: spinCount * rotateBy,
+        scale: spinCount === 0 ? 1 : [1, 0.82, 1],
+      }}
+      transition={{
+        rotate: { type: "spring", stiffness: 300, damping: 15 },
+        scale: { duration: 0.2 },
+      }}
+      whileTap={{ scale: 0.85 }}
+      style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+function ActionIconButton({
+  tooltip,
+  ariaLabel,
+  color = "default",
+  preset = "normal",
+  onAction,
+  children,
+}: {
+  tooltip: string;
+  ariaLabel: string;
+  color?: "default" | "primary" | "secondary" | "error" | "info" | "success" | "warning";
+  preset?: ActionIconSpinPreset;
+  onAction: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <MuiTooltip title={tooltip} arrow>
+      <IconButton
+        size="small"
+        color={color}
+        aria-label={ariaLabel}
+        sx={{ p: 0.5 }}
+        onClick={() => {
+          window.setTimeout(() => {
+            onAction();
+          }, 160);
+        }}
+      >
+        <ActionIconMotion preset={preset}>{children}</ActionIconMotion>
+      </IconButton>
+    </MuiTooltip>
+  );
+}
+
 function AppHeaderAuth() {
   const { user, loading, signOutUser } = useAuth();
   const { isDark, toggleTheme } = useAppTheme();
@@ -458,7 +531,20 @@ function AppHeaderAuth() {
         href="/login"
         variant="text"
         size="small"
-        sx={{ textTransform: "none", fontWeight: 600, color: "#0f172a" }}
+        sx={{
+          textTransform: "none",
+          fontWeight: 700,
+          color: theme.palette.mode === "dark" ? "#f8fafc" : "#0f172a",
+          border: "1px solid",
+          borderColor: theme.palette.mode === "dark" ? "rgba(148, 163, 184, 0.45)" : "rgba(15, 23, 42, 0.22)",
+          borderRadius: 2,
+          px: 1.5,
+          py: 0.5,
+          "&:hover": {
+            borderColor: theme.palette.mode === "dark" ? "rgba(248, 250, 252, 0.75)" : "rgba(15, 23, 42, 0.38)",
+            backgroundColor: theme.palette.mode === "dark" ? "rgba(248, 250, 252, 0.08)" : "rgba(15, 23, 42, 0.04)",
+          },
+        }}
       >
         Sign in
       </Button>
@@ -488,17 +574,19 @@ function AppHeaderAuth() {
           aria-label="Settings"
           sx={{ p: 0.5 }}
         >
-          <Box
-            component="img"
-            src="/icon-settings.png"
-            alt="Settings"
-            sx={{
-              width: 22,
-              height: 22,
-              display: "block",
-              filter: isDark ? "brightness(0) invert(1)" : "none",
-            }}
-          />
+          <ActionIconMotion>
+            <Box
+              component="img"
+              src="/icon-settings.png"
+              alt="Settings"
+              sx={{
+                width: 22,
+                height: 22,
+                display: "block",
+                filter: isDark ? "brightness(0) invert(1)" : "none",
+              }}
+            />
+          </ActionIconMotion>
         </IconButton>
       </MuiTooltip>
       <Menu
@@ -546,16 +634,18 @@ function AppHeaderAuth() {
           onClick={() => setSettingsAnchorEl(null)}
           sx={{ py: 1.2, gap: 1 }}
         >
-          <Box
-            component="img"
-            src="/icon-change-password.png"
-            alt=""
-            sx={{
-              width: 18,
-              height: 18,
-              filter: isDark ? "brightness(0) invert(1)" : "none",
-            }}
-          />
+          <ActionIconMotion>
+            <Box
+              component="img"
+              src="/icon-change-password.png"
+              alt=""
+              sx={{
+                width: 18,
+                height: 18,
+                filter: isDark ? "brightness(0) invert(1)" : "none",
+              }}
+            />
+          </ActionIconMotion>
           <Typography variant="body2">Change password</Typography>
         </MenuItem>
         <MenuItem
@@ -565,16 +655,18 @@ function AppHeaderAuth() {
           }}
           sx={{ py: 1.2, gap: 1 }}
         >
-          <Box
-            component="img"
-            src="/icon-logout.png"
-            alt=""
-            sx={{
-              width: 18,
-              height: 18,
-              filter: isDark ? "brightness(0) invert(1)" : "none",
-            }}
-          />
+          <ActionIconMotion preset="strong">
+            <Box
+              component="img"
+              src="/icon-logout.png"
+              alt=""
+              sx={{
+                width: 18,
+                height: 18,
+                filter: isDark ? "brightness(0) invert(1)" : "none",
+              }}
+            />
+          </ActionIconMotion>
           <Typography variant="body2">Logout</Typography>
         </MenuItem>
       </Menu>
@@ -1456,58 +1548,53 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL and redeplo
         <Box sx={{ width: "100%", display: "flex", justifyContent: "flex-end" }}>
           {canManageMembers ? (
             <Stack direction="row" spacing={1}>
-              <MuiTooltip title="Edit member" arrow>
-                <IconButton
-                  size="small"
-                  aria-label="Edit member"
-                  sx={{ p: 0.5 }}
-                  onClick={() => {
-                    if (!canManageMembers) return;
-                    setEditMember(row.original);
-                    setMemberForm({
-                      fullName: row.original.fullName,
-                      email: row.original.email,
-                      role: row.original.role,
-                      team: row.original.team,
-                      status: row.original.status,
-                    });
-                    setMemberFormInputKey((k) => k + 1);
-                    setMemberErrors({});
-                    setDialogOpen(true);
+              <ActionIconButton
+                tooltip="Edit member"
+                ariaLabel="Edit member"
+                onAction={() => {
+                  if (!canManageMembers) return;
+                  setEditMember(row.original);
+                  setMemberForm({
+                    fullName: row.original.fullName,
+                    email: row.original.email,
+                    role: row.original.role,
+                    team: row.original.team,
+                    status: row.original.status,
+                  });
+                  setMemberFormInputKey((k) => k + 1);
+                  setMemberErrors({});
+                  setDialogOpen(true);
+                }}
+              >
+                <Box
+                  component="img"
+                  src="/icon-edit.png"
+                  alt="Edit member"
+                  sx={{
+                    width: 18,
+                    height: 18,
+                    display: "block",
+                    filter: isDarkMode ? "brightness(0) invert(1)" : "none",
                   }}
-                >
-                  <Box
-                    component="img"
-                    src="/icon-edit.png"
-                    alt="Edit member"
-                    sx={{
-                      width: 18,
-                      height: 18,
-                      display: "block",
-                      filter: isDarkMode ? "brightness(0) invert(1)" : "none",
-                    }}
-                  />
-                </IconButton>
-              </MuiTooltip>
-              <MuiTooltip title="Delete member" arrow>
-                <IconButton
-                  size="small"
-                  color="error"
-                  onClick={() => {
-                    if (!canManageMembers) return;
-                    deleteMemberMutation.mutate(row.original.id);
-                  }}
-                  aria-label="Delete member"
-                  sx={{ p: 0.5 }}
-                >
-                  <Box
-                    component="img"
-                    src="/icon-task-delete.png"
-                    alt="Delete member"
-                    sx={{ width: 18, height: 18, display: "block" }}
-                  />
-                </IconButton>
-              </MuiTooltip>
+                />
+              </ActionIconButton>
+              <ActionIconButton
+                tooltip="Delete member"
+                ariaLabel="Delete member"
+                color="error"
+                preset="strong"
+                onAction={() => {
+                  if (!canManageMembers) return;
+                  deleteMemberMutation.mutate(row.original.id);
+                }}
+              >
+                <Box
+                  component="img"
+                  src="/icon-task-delete.png"
+                  alt="Delete member"
+                  sx={{ width: 18, height: 18, display: "block" }}
+                />
+              </ActionIconButton>
             </Stack>
           ) : (
             <Typography variant="body2" color="text.secondary">
@@ -1532,56 +1619,51 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL and redeplo
         <Box sx={{ width: "100%", display: "flex", justifyContent: "flex-end" }}>
           {canManageProjects ? (
             <Stack direction="row" spacing={1}>
-              <MuiTooltip title="Edit project" arrow>
-                <IconButton
-                  size="small"
-                  aria-label="Edit project"
-                  sx={{ p: 0.5 }}
-                  onClick={() => {
-                    if (!canManageProjects) return;
-                    setEditProject(row.original);
-                    setProjectForm({
-                      name: row.original.name,
-                      description: row.original.description ?? "",
-                      status: row.original.status,
-                    });
-                    setProjectFormInputKey((k) => k + 1);
-                    setProjectErrors({});
-                    setProjectDialogOpen(true);
+              <ActionIconButton
+                tooltip="Edit project"
+                ariaLabel="Edit project"
+                onAction={() => {
+                  if (!canManageProjects) return;
+                  setEditProject(row.original);
+                  setProjectForm({
+                    name: row.original.name,
+                    description: row.original.description ?? "",
+                    status: row.original.status,
+                  });
+                  setProjectFormInputKey((k) => k + 1);
+                  setProjectErrors({});
+                  setProjectDialogOpen(true);
+                }}
+              >
+                <Box
+                  component="img"
+                  src="/icon-edit.png"
+                  alt="Edit project"
+                  sx={{
+                    width: 18,
+                    height: 18,
+                    display: "block",
+                    filter: isDarkMode ? "brightness(0) invert(1)" : "none",
                   }}
-                >
-                  <Box
-                    component="img"
-                    src="/icon-edit.png"
-                    alt="Edit project"
-                    sx={{
-                      width: 18,
-                      height: 18,
-                      display: "block",
-                      filter: isDarkMode ? "brightness(0) invert(1)" : "none",
-                    }}
-                  />
-                </IconButton>
-              </MuiTooltip>
-              <MuiTooltip title="Delete project" arrow>
-                <IconButton
-                  size="small"
-                  color="error"
-                  onClick={() => {
-                    if (!canManageProjects) return;
-                    deleteProjectMutation.mutate(row.original.id);
-                  }}
-                  aria-label="Delete project"
-                  sx={{ p: 0.5 }}
-                >
-                  <Box
-                    component="img"
-                    src="/icon-task-delete.png"
-                    alt="Delete project"
-                    sx={{ width: 18, height: 18, display: "block" }}
-                  />
-                </IconButton>
-              </MuiTooltip>
+                />
+              </ActionIconButton>
+              <ActionIconButton
+                tooltip="Delete project"
+                ariaLabel="Delete project"
+                color="error"
+                preset="strong"
+                onAction={() => {
+                  if (!canManageProjects) return;
+                  deleteProjectMutation.mutate(row.original.id);
+                }}
+              >
+                <Box
+                  component="img"
+                  src="/icon-task-delete.png"
+                  alt="Delete project"
+                  sx={{ width: 18, height: 18, display: "block" }}
+                />
+              </ActionIconButton>
             </Stack>
           ) : (
             <Typography variant="body2" color="text.secondary">
@@ -2079,6 +2161,7 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL and redeplo
                     {canMutateTasks ? (
                       <Button
                         variant="contained"
+                        sx={{ display: "inline-flex", alignItems: "center", gap: 0.75 }}
                         onClick={() => {
                           if (!canMutateTasks) return;
                           setEditTask(null);
@@ -2096,6 +2179,11 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL and redeplo
                           setTaskDrawerOpen(true);
                         }}
                       >
+                        <ActionIconMotion preset="add">
+                          <Box component="span" sx={{ fontSize: "1.05rem", fontWeight: 700, lineHeight: 1 }}>
+                            +
+                          </Box>
+                        </ActionIconMotion>
                         Add task
                       </Button>
                     ) : null}

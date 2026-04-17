@@ -3,11 +3,12 @@
 import { useEffect } from "react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Alert, AppBar, Box, Button, CircularProgress, Container, Stack, TextField, Toolbar, Typography } from "@mui/material";
+import { Alert, AppBar, Box, Button, CircularProgress, Container, Stack, TextField, Toolbar, Typography, useTheme } from "@mui/material";
 import { useAuth } from "@/context/AuthContext";
 
 export default function LoginPage() {
   const { user, loading, signInWithPassword } = useAuth();
+  const theme = useTheme();
   const router = useRouter();
   const [errorText, setErrorText] = useState<string | null>(null);
   const [email, setEmail] = useState("");
@@ -66,9 +67,17 @@ export default function LoginPage() {
   }
 
   return (
-    <Box sx={{ minHeight: "100vh", bgcolor: "#fff" }}>
+    <Box sx={{ minHeight: "100vh", bgcolor: "background.default", color: "text.primary" }}>
       <AppBar position="static" color="inherit" elevation={0}>
-        <Toolbar className="border-b border-slate-200/80 bg-white/95 backdrop-blur" sx={{ justifyContent: "flex-start" }}>
+        <Toolbar
+          sx={{
+            justifyContent: "flex-start",
+            borderBottom: 1,
+            borderColor: "divider",
+            bgcolor: theme.palette.mode === "dark" ? "rgba(17, 17, 17, 0.92)" : "rgba(255, 255, 255, 0.95)",
+            backdropFilter: "blur(8px)",
+          }}
+        >
           <Stack direction="row" spacing={1.5} alignItems="center">
             <Box
               component="img"
@@ -77,10 +86,10 @@ export default function LoginPage() {
               sx={{ height: 40, width: "auto", display: "block" }}
             />
             <Box>
-              <Typography fontWeight={800} className="text-slate-900">
+              <Typography fontWeight={800} color="text.primary">
                 {"Software team's work schedule"}
               </Typography>
-              <Typography variant="caption" className="text-slate-500">
+              <Typography variant="caption" color="text.secondary">
                 {"Thuan Ngo's Software Team"}
               </Typography>
             </Box>
@@ -122,7 +131,27 @@ export default function LoginPage() {
             size="large"
             onClick={() => void handleLogin()}
             disabled={submitting}
-            sx={{ px: 3, py: 1.5, textTransform: "none", fontWeight: 600, alignSelf: "center" }}
+            sx={{
+              px: 3,
+              py: 1.5,
+              textTransform: "none",
+              fontWeight: 700,
+              alignSelf: "center",
+              minWidth: 140,
+              bgcolor: "#217346",
+              color: "#ffffff",
+              boxShadow:
+                theme.palette.mode === "dark"
+                  ? "0 8px 20px rgba(33, 115, 70, 0.42)"
+                  : "0 6px 14px rgba(33, 115, 70, 0.28)",
+              "&:hover": {
+                bgcolor: "#185c37",
+              },
+              "&.Mui-disabled": {
+                bgcolor: theme.palette.mode === "dark" ? "rgba(33, 115, 70, 0.5)" : "rgba(33, 115, 70, 0.55)",
+                color: "rgba(255, 255, 255, 0.82)",
+              },
+            }}
           >
             {submitting ? "Signing in..." : "Sign in"}
           </Button>

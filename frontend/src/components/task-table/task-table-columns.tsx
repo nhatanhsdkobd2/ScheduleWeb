@@ -3,6 +3,8 @@
 import { Box, IconButton, MenuItem, TextField, Tooltip as MuiTooltip, Typography, useTheme } from "@mui/material";
 import type { ColumnDef } from "@tanstack/react-table";
 import { format } from "date-fns";
+import { motion } from "framer-motion";
+import { useState, type ReactNode } from "react";
 import type { Task } from "@shared/types/domain";
 import { InlineDateEditor, ProgressEditor, TaskDescriptionEditor } from "@/components/task-table/task-table-editors";
 import type { TaskTableMeta } from "@/components/task-table/task-table-meta";
@@ -11,6 +13,34 @@ import { isTaskOverdue, toDayStart, isWeekendDate } from "@/components/task-tabl
 
 function meta(table: { options: { meta?: unknown } }): TaskTableMeta {
   return table.options.meta as TaskTableMeta;
+}
+
+function ActionIconMotion({
+  children,
+  strong = false,
+}: {
+  children: ReactNode;
+  strong?: boolean;
+}) {
+  const [spinCount, setSpinCount] = useState(0);
+  const rotateBy = strong ? 540 : 360;
+  return (
+    <motion.div
+      onClick={() => setSpinCount((prev) => prev + 1)}
+      animate={{
+        rotate: spinCount * rotateBy,
+        scale: spinCount === 0 ? 1 : [1, 0.82, 1],
+      }}
+      transition={{
+        rotate: { type: "spring", stiffness: 300, damping: 15 },
+        scale: { duration: 0.2 },
+      }}
+      whileTap={{ scale: 0.85 }}
+      style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}
+    >
+      {children}
+    </motion.div>
+  );
 }
 
 /** Matches prior grid: 11px cells, ~2px gap (MUI spacing 0.25). */
@@ -470,12 +500,14 @@ export function createTaskColumns(timelineMonthDays: Date[]): ColumnDef<TaskTabl
                 aria-label="Delete task"
                 sx={{ p: 0.5 }}
               >
-                <Box
-                  component="img"
-                  src="/icon-task-delete.png"
-                  alt="Delete task"
-                  sx={{ width: 18, height: 18, display: "block" }}
-                />
+                <ActionIconMotion strong>
+                  <Box
+                    component="img"
+                    src="/icon-task-delete.png"
+                    alt="Delete task"
+                    sx={{ width: 18, height: 18, display: "block" }}
+                  />
+                </ActionIconMotion>
               </IconButton>
             </MuiTooltip>
           </Box>
