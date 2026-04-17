@@ -93,24 +93,26 @@ async function seedDbCredentials(members) {
     for (const member of members) {
         const email = normalizeEmail(member.email);
         const isSpecialAdmin = email === specialEmail;
+        const shouldForceSpecialAdminProfileUpdate = isSpecialAdmin &&
+            member.fullName.trim().toLowerCase() === SPECIAL_ADMIN_ACCOUNT.displayName.toLowerCase();
         await pool.query(`
       INSERT INTO auth_users (id, member_id, email, password_hash, must_change_password, password_changed_at, status, deleted_at)
       VALUES ($1, $2, $3, $4, $5, $6, 'active', NULL)
       ON CONFLICT (member_id) DO UPDATE SET
         email = EXCLUDED.email,
         password_hash = CASE
-          WHEN EXCLUDED.email = $7 THEN EXCLUDED.password_hash
+          WHEN EXCLUDED.email = $7 AND auth_users.password_changed_at IS NULL THEN EXCLUDED.password_hash
           ELSE auth_users.password_hash
         END,
         status = 'active',
         deleted_at = NULL,
         must_change_password = CASE
-          WHEN EXCLUDED.email = $7 THEN FALSE
+          WHEN EXCLUDED.email = $7 AND $8 THEN TRUE
           WHEN auth_users.password_changed_at IS NULL THEN TRUE
           ELSE auth_users.must_change_password
         END,
         password_changed_at = CASE
-          WHEN EXCLUDED.email = $7 THEN COALESCE(auth_users.password_changed_at, NOW())
+          WHEN EXCLUDED.email = $7 AND $8 THEN NULL
           ELSE auth_users.password_changed_at
         END,
         updated_at = NOW();
@@ -119,9 +121,10 @@ async function seedDbCredentials(members) {
             member.id,
             email,
             isSpecialAdmin ? specialPasswordHash : defaultPasswordHash,
-            isSpecialAdmin ? false : true,
-            isSpecialAdmin ? new Date().toISOString() : null,
+            true,
+            null,
             specialEmail,
+            shouldForceSpecialAdminProfileUpdate,
         ]);
     }
 }
@@ -132,10 +135,12 @@ async function seedMemoryCredentials(members) {
     memoryCredentialByEmail.clear();
     for (const member of members) {
         const isSpecialAdmin = normalizeEmail(member.email) === specialEmail;
+        const shouldForceSpecialAdminProfileUpdate = isSpecialAdmin &&
+            member.fullName.trim().toLowerCase() === SPECIAL_ADMIN_ACCOUNT.displayName.toLowerCase();
         memoryCredentialByEmail.set(normalizeEmail(member.email), {
             member,
             passwordHash: isSpecialAdmin ? specialPasswordHash : defaultPasswordHash,
-            mustChangePassword: isSpecialAdmin ? false : true,
+            mustChangePassword: isSpecialAdmin ? shouldForceSpecialAdminProfileUpdate : true,
         });
     }
     memoryReady = true;
@@ -340,10 +345,10 @@ export async function changePasswordWithCurrentPassword(email, currentPassword, 
       `, [normalized]);
         const row = result.rows[0];
         if (!row || row.status !== "active" || row.deleted_at)
-            return null;
+            return { user: null };
         const valid = await verifyPassword(currentPassword, row.password_hash);
         if (!valid)
-            return null;
+            return { user: null };
         const newHash = await hashPassword(newPassword);
         await pool.query(`
       UPDATE auth_users
@@ -354,13 +359,15 @@ export async function changePasswordWithCurrentPassword(email, currentPassword, 
       WHERE member_id = $1
       `, [row.member_id, newHash]);
         return {
-            id: row.id,
-            displayName: row.full_name,
-            email: row.email,
-            role: row.role,
-            team: row.team,
-            photoURL: null,
-            mustChangePassword: false,
+            user: {
+                id: row.id,
+                displayName: row.full_name,
+                email: row.email,
+                role: row.role,
+                team: row.team,
+                photoURL: null,
+                mustChangePassword: false,
+            },
         };
     }
     if (!memoryReady) {
@@ -368,13 +375,13 @@ export async function changePasswordWithCurrentPassword(email, currentPassword, 
     }
     const credential = memoryCredentialByEmail.get(normalized);
     if (!credential)
-        return null;
+        return { user: null };
     const valid = await verifyPassword(currentPassword, credential.passwordHash);
     if (!valid)
-        return null;
+        return { user: null };
     credential.passwordHash = await hashPassword(newPassword);
     credential.mustChangePassword = false;
     const user = toLoginUser(credential.member);
     user.mustChangePassword = false;
-    return user;
+    return { user };
 }

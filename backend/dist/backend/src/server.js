@@ -173,11 +173,11 @@ app.post("/auth/change-password", async (req, res) => {
     const parsed = changePasswordSchema.safeParse(req.body);
     if (!parsed.success)
         return res.status(400).json({ error: parsed.error.flatten() });
-    const user = await changePasswordWithCurrentPassword(parsed.data.email, parsed.data.currentPassword, parsed.data.newPassword);
-    if (!user) {
-        return res.status(401).json({ error: "Invalid email or current password" });
+    const result = await changePasswordWithCurrentPassword(parsed.data.email, parsed.data.currentPassword, parsed.data.newPassword);
+    if (!result.user) {
+        return res.status(401).json({ error: result.error ?? "Invalid email or current password" });
     }
-    return res.json({ user });
+    return res.json({ user: result.user });
 });
 const adminCreateAccountSchema = z.object({
     fullName: z.string().min(2),

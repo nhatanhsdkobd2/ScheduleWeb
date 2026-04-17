@@ -26,6 +26,10 @@ export default function ChangePasswordPage() {
   }, [loading, user, router]);
 
   const handleChangePassword = async () => {
+    if (!user) {
+      setErrorText("No active session.");
+      return;
+    }
     if (!currentPassword || !newPassword || !confirmPassword) {
       setErrorText("Please fill all password fields.");
       return;

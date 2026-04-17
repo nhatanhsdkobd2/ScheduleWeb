@@ -67,7 +67,11 @@ type AuthContextValue = {
   user: AuthLoginUser | null;
   loading: boolean;
   signInWithPassword: (email: string, password: string) => Promise<AuthLoginUser>;
-  changeMyPassword: (currentPassword: string, newPassword: string, confirmPassword: string) => Promise<void>;
+  changeMyPassword: (
+    currentPassword: string,
+    newPassword: string,
+    confirmPassword: string,
+  ) => Promise<void>;
   signOutUser: () => Promise<void>;
 };
 
@@ -95,13 +99,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const changeMyPassword = useCallback(
-    async (currentPassword: string, newPassword: string, confirmPassword: string) => {
+    async (
+      currentPassword: string,
+      newPassword: string,
+      confirmPassword: string,
+    ) => {
       const current = readStoredUser();
       const email = current?.email ?? user?.email;
       if (!email) {
         throw new Error("No active user session.");
       }
-      const updated = await changePassword(email, currentPassword, newPassword, confirmPassword);
+      const updated = await changePassword(
+        email,
+        currentPassword,
+        newPassword,
+        confirmPassword,
+      );
       setUser(updated);
       writeStoredUser(updated);
       setApiAuthRole(updated.role);
