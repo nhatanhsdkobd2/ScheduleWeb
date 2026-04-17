@@ -181,12 +181,23 @@ function DateFilterField({
   onChange: (value: string) => void;
   minWidth?: number;
 }) {
+  function CalendarOpenIcon() {
+    return (
+      <Box
+        component="img"
+        src="/icon-calendar-custom.png"
+        alt=""
+        sx={{ width: 20, height: 20, display: "block" }}
+      />
+    );
+  }
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === "dark";
   const pickerValue = value ? new Date(`${value}T00:00:00`) : null;
   return (
     <DatePicker
       label={label}
+      slots={{ openPickerIcon: CalendarOpenIcon }}
       value={pickerValue}
       format="dd/MM/yyyy"
       reduceAnimations={false}
@@ -212,6 +223,10 @@ function DateFilterField({
             },
             "& .MuiInputAdornment-root .MuiSvgIcon-root": {
               color: "#217346",
+            },
+            "& .MuiInputAdornment-root img": {
+              filter:
+                "brightness(0) saturate(100%) invert(34%) sepia(44%) saturate(760%) hue-rotate(95deg) brightness(93%) contrast(89%)",
             },
             "& fieldset": { borderColor: "#e5e7eb" },
             "& .MuiOutlinedInput-root:hover fieldset": { borderColor: "#cbd5e1" },
@@ -1859,7 +1874,7 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL and redeplo
                     size="small"
                     value={projectSearch}
                     onChange={(e) => setProjectSearch(e.target.value)}
-                    placeholder="Name, code, category…"
+                    placeholder="Name Project"
                     sx={{
                       minWidth: { xs: "100%", md: 280 },
                       flex: { md: "1 1 280px" },

@@ -441,7 +441,11 @@ export function createTaskColumns(timelineMonthDays: Date[]): ColumnDef<TaskTabl
     },
     {
       id: "actions",
-      header: "Actions",
+      header: () => (
+        <Box sx={{ width: "100%", textAlign: "center" }}>
+          Actions
+        </Box>
+      ),
       cell: ({ row, table }) => {
         const m = meta(table);
         const canEditThisTask = m.canEditTask(row.original.raw);
