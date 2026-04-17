@@ -18,6 +18,7 @@ import {
   Grid,
   IconButton,
   InputAdornment,
+  Menu,
   MenuItem,
   Stack,
   Tab,
@@ -365,6 +366,8 @@ function emailLocalPartFromInput(rawEmail: string): string {
 
 function AppHeaderAuth() {
   const { user, loading, signOutUser } = useAuth();
+  const [settingsAnchorEl, setSettingsAnchorEl] = useState<HTMLElement | null>(null);
+  const settingsOpen = Boolean(settingsAnchorEl);
   if (loading) {
     return (
       <Box sx={{ display: "flex", alignItems: "center", minWidth: 72, justifyContent: "flex-end" }}>
@@ -402,37 +405,60 @@ function AppHeaderAuth() {
           </Typography>
         ) : null}
       </Box>
-      <MuiTooltip title="Change password" arrow>
+      <MuiTooltip title="Settings" arrow>
         <IconButton
+          size="small"
+          onClick={(event) => setSettingsAnchorEl(event.currentTarget)}
+          aria-label="Settings"
+          sx={{ p: 0.5 }}
+        >
+          <Box
+            component="img"
+            src="/icon-settings.png"
+            alt="Settings"
+            sx={{ width: 22, height: 22, display: "block" }}
+          />
+        </IconButton>
+      </MuiTooltip>
+      <Menu
+        anchorEl={settingsAnchorEl}
+        open={settingsOpen}
+        onClose={() => setSettingsAnchorEl(null)}
+        keepMounted
+        TransitionProps={{ timeout: 220 }}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+        transformOrigin={{ vertical: "top", horizontal: "right" }}
+        slotProps={{
+          paper: {
+            sx: {
+              mt: 1,
+              borderRadius: 2,
+              minWidth: 190,
+              boxShadow: "0 10px 24px rgba(15,23,42,0.18)",
+            },
+          },
+        }}
+      >
+        <MenuItem
           component={Link}
           href="/change-password"
-          size="small"
-          aria-label="Change password"
-          sx={{ p: 0.5 }}
+          onClick={() => setSettingsAnchorEl(null)}
+          sx={{ py: 1.2, gap: 1 }}
         >
-          <Box
-            component="img"
-            src="/icon-change-password.png"
-            alt="Change password"
-            sx={{ width: 22, height: 22, display: "block" }}
-          />
-        </IconButton>
-      </MuiTooltip>
-      <MuiTooltip title="Sign out" arrow>
-        <IconButton
-          size="small"
-          onClick={() => void signOutUser()}
-          aria-label="Sign out"
-          sx={{ p: 0.5 }}
+          <Box component="img" src="/icon-change-password.png" alt="" sx={{ width: 18, height: 18 }} />
+          <Typography variant="body2">Change password</Typography>
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            setSettingsAnchorEl(null);
+            void signOutUser();
+          }}
+          sx={{ py: 1.2, gap: 1 }}
         >
-          <Box
-            component="img"
-            src="/icon-logout.png"
-            alt="Sign out"
-            sx={{ width: 22, height: 22, display: "block" }}
-          />
-        </IconButton>
-      </MuiTooltip>
+          <Box component="img" src="/icon-logout.png" alt="" sx={{ width: 18, height: 18 }} />
+          <Typography variant="body2">Logout</Typography>
+        </MenuItem>
+      </Menu>
     </Stack>
   );
 }
