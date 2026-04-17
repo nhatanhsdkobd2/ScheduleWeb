@@ -12,7 +12,7 @@ import {
 import {
   changePassword,
   loginWithEmailPassword,
-  setApiAuthRole,
+  setApiAuthUserContext,
   type AuthLoginUser,
 } from "@/lib/api";
 import { AUTH_SESSION_COOKIE } from "@/lib/auth-session";
@@ -84,7 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const saved = readStoredUser();
     setUser(saved);
-    setApiAuthRole(saved?.role);
+    setApiAuthUserContext(saved);
     setAuthSessionCookie(Boolean(saved));
     setLoading(false);
   }, []);
@@ -93,7 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const loggedInUser = await loginWithEmailPassword(email, password);
     setUser(loggedInUser);
     writeStoredUser(loggedInUser);
-    setApiAuthRole(loggedInUser.role);
+    setApiAuthUserContext(loggedInUser);
     setAuthSessionCookie(true);
     return loggedInUser;
   }, []);
@@ -117,7 +117,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       );
       setUser(updated);
       writeStoredUser(updated);
-      setApiAuthRole(updated.role);
+      setApiAuthUserContext(updated);
       setAuthSessionCookie(true);
     },
     [user?.email],
@@ -126,7 +126,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOutUser = useCallback(async () => {
     writeStoredUser(null);
     setUser(null);
-    setApiAuthRole("member");
+    setApiAuthUserContext(null);
     setAuthSessionCookie(false);
   }, []);
 

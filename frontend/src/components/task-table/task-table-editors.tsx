@@ -100,9 +100,11 @@ export const ProgressEditor = memo(function ProgressEditor({
         size="small"
         variant="standard"
         value={`${draft}%`}
-        disabled={!canMutate}
         InputProps={{ disableUnderline: true }}
-        inputProps={{ style: { textAlign: "center", padding: "3px 6px", fontWeight: 600, fontSize: "0.92rem", color: "#000" } }}
+        inputProps={{
+          readOnly: !canMutate,
+          style: { textAlign: "center", padding: "3px 6px", fontWeight: 600, fontSize: "0.92rem", color: "#000" },
+        }}
         sx={{
           position: "absolute",
           inset: 0,
@@ -111,9 +113,14 @@ export const ProgressEditor = memo(function ProgressEditor({
           "& input": { color: "#000 !important" },
         }}
         onFocus={() => {
+          if (!canMutate) {
+            inputRef.current?.blur();
+            return;
+          }
           inputFocusedRef.current = true;
         }}
         onBlur={() => {
+          if (!canMutate) return;
           inputFocusedRef.current = false;
           if (skipBlurCommitRef.current) return;
           const clamped = clampDraft(draft);
@@ -122,6 +129,7 @@ export const ProgressEditor = memo(function ProgressEditor({
           }
         }}
         onChange={(e) => {
+          if (!canMutate) return;
           const digits = e.target.value.replace(/[^0-9]/g, "");
           if (!digits) {
             setDraft("0");
@@ -131,6 +139,7 @@ export const ProgressEditor = memo(function ProgressEditor({
           setDraft(normalized);
         }}
         onKeyDown={(e: KeyboardEvent<HTMLDivElement>) => {
+          if (!canMutate) return;
           if (e.key === "Enter") {
             if (e.nativeEvent.isComposing) return;
             e.preventDefault();
@@ -180,16 +189,25 @@ export const TaskDescriptionEditor = memo(function TaskDescriptionEditor({
       variant="standard"
       fullWidth
       value={draft}
-      disabled={!canMutate}
       InputProps={{ disableUnderline: true }}
+      inputProps={{ readOnly: !canMutate }}
       onFocus={() => {
+        if (!canMutate) {
+          inputRef.current?.blur();
+          return;
+        }
         inputFocusedRef.current = true;
       }}
       onBlur={() => {
+        if (!canMutate) return;
         inputFocusedRef.current = false;
       }}
-      onChange={(e) => setDraft(e.target.value)}
+      onChange={(e) => {
+        if (!canMutate) return;
+        setDraft(e.target.value);
+      }}
       onKeyDown={(e) => {
+        if (!canMutate) return;
         if (e.key === "Enter") {
           if (e.nativeEvent.isComposing) return;
           e.preventDefault();

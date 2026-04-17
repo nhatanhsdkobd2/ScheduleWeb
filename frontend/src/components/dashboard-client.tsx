@@ -255,6 +255,7 @@ async function exportTasksToXLSX(rows: TaskTableRow[], timelineDays: Date[]): Pr
   const fixedCols = 8; // before timeline starts
   const timelineStartCol = fixedCols + 1;
   ws.getRow(1).font = { bold: true };
+  ws.getRow(1).alignment = { horizontal: "center", vertical: "middle" };
   // Keep a single contiguous sheet region (no vertical pane split).
   ws.views = [{ state: "frozen", ySplit: 1 }];
 
@@ -302,6 +303,7 @@ async function exportTasksToXLSX(rows: TaskTableRow[], timelineDays: Date[]): Pr
     });
   }
 
+  const timelineColumnWidths = timelineHeaders.map((header) => Math.max(8, header.length + 1));
   ws.columns = [
     { width: 18 },
     { width: 36 },
@@ -311,7 +313,7 @@ async function exportTasksToXLSX(rows: TaskTableRow[], timelineDays: Date[]): Pr
     { width: 14 },
     { width: 10 },
     { width: 10 },
-    ...timelineDays.map(() => ({ width: 3 })),
+    ...timelineColumnWidths.map((width) => ({ width })),
   ];
 
   const buffer = await workbook.xlsx.writeBuffer();
@@ -335,6 +337,28 @@ function headerUserDisplayName(u: { displayName: string | null; email: string | 
     return local && local.length > 0 ? local : u.email;
   }
   return "User";
+}
+
+const DEFAULT_MEMBER_EMAIL_DOMAIN = "@vn.innova.com";
+
+function normalizeMemberEmailInput(rawEmail: string, isEditMode: boolean): string {
+  const trimmed = rawEmail.trim();
+  if (trimmed.length === 0) return "";
+  if (isEditMode) return trimmed;
+  if (trimmed.includes("@")) return trimmed;
+  return `${trimmed}${DEFAULT_MEMBER_EMAIL_DOMAIN}`;
+}
+
+function emailLocalPartFromInput(rawEmail: string): string {
+  const trimmed = rawEmail.trim();
+  if (!trimmed) return "";
+  if (trimmed.endsWith(DEFAULT_MEMBER_EMAIL_DOMAIN)) {
+    return trimmed.slice(0, Math.max(0, trimmed.length - DEFAULT_MEMBER_EMAIL_DOMAIN.length));
+  }
+  if (trimmed.includes("@")) {
+    return trimmed.split("@")[0] ?? "";
+  }
+  return trimmed;
 }
 
 function AppHeaderAuth() {
@@ -486,6 +510,10 @@ export default function DashboardClient() {
   });
   const [accountCreateError, setAccountCreateError] = useState<string | null>(null);
   const [accountCreateSuccess, setAccountCreateSuccess] = useState<string | null>(null);
+  const accountEmailLocalPart = useMemo(
+    () => emailLocalPartFromInput(accountForm.email),
+    [accountForm.email],
+  );
 
   editTaskRef.current = editTask;
   taskDrawerOpenRef.current = taskDrawerOpen;
@@ -679,6 +707,8 @@ export default function DashboardClient() {
   const isTaskRowFlashing = useCallback((taskId: string) => remoteFlashTaskIds.has(taskId), [remoteFlashTaskIds]);
 
   const canMutateTasks = Boolean(user);
+  const canManageAllTasks = user?.role === "admin" || user?.role === "lead";
+  const canAssignAnyMember = canManageAllTasks;
   const canManageAccounts = user?.role === "admin";
   const canManageMembers =
     Boolean(user) && (user?.role === "admin" || user?.role === "lead" || isAppAdminEmail(user?.email));
@@ -715,12 +745,20 @@ export default function DashboardClient() {
       void queryClient.invalidateQueries({ queryKey: ["members"] });
       setDialogOpen(false);
     },
+    onError: (error) => {
+      const message = error instanceof Error ? error.message : "Failed to create member";
+      setMemberErrors((prev) => ({ ...prev, _form: message }));
+    },
   });
   const updateMemberMutation = useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: Partial<Omit<Member, "id">> }) => updateMember(id, payload),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["members"] });
       setDialogOpen(false);
+    },
+    onError: (error) => {
+      const message = error instanceof Error ? error.message : "Failed to update member";
+      setMemberErrors((prev) => ({ ...prev, _form: message }));
     },
   });
   const deleteMemberMutation = useMutation({
@@ -839,32 +877,60 @@ export default function DashboardClient() {
     for (const mem of members) m.set(mem.id, mem);
     return m;
   }, [members]);
+  const taskById = useMemo(() => {
+    const map = new Map<string, Task>();
+    for (const task of tasks) {
+      map.set(task.id, task);
+    }
+    return map;
+  }, [tasks]);
+  const canEditTask = useCallback(
+    (task: Task | undefined): boolean => {
+      if (!user) return false;
+      if (!task) return false;
+      if (user.role === "member") return task.assigneeMemberId === user.id;
+      return true;
+    },
+    [user],
+  );
+  const assignableMembers = useMemo(() => {
+    if (user?.role === "member") {
+      return members.filter((member) => member.id === user.id);
+    }
+    return members;
+  }, [members, user?.id, user?.role]);
 
   const commitProgress = useCallback(
     (taskId: string, value: number, currentProgress: number) => {
       if (!canMutateTasks) return;
+      const task = taskById.get(taskId);
+      if (!canEditTask(task)) return;
       const next = Math.min(100, Math.max(0, Math.round(value)));
       const prev = Math.min(100, Math.max(0, Math.round(currentProgress)));
       if (next !== prev) {
         updateTaskMutation.mutate({ id: taskId, payload: { progress: next } });
       }
     },
-    [canMutateTasks, updateTaskMutation],
+    [canMutateTasks, canEditTask, taskById, updateTaskMutation],
   );
   const commitTaskTitle = useCallback(
     (taskId: string, value: string, currentTitle: string) => {
       if (!canMutateTasks) return;
+      const task = taskById.get(taskId);
+      if (!canEditTask(task)) return;
       const next = value.trim();
       if (!next || next === currentTitle) return;
       updateTaskMutation.mutate({ id: taskId, payload: { title: next } });
     },
-    [canMutateTasks, updateTaskMutation],
+    [canMutateTasks, canEditTask, taskById, updateTaskMutation],
   );
   const updateTaskMutate = useCallback(
     (args: { id: string; payload: Partial<Omit<Task, "id">> }) => {
+      const task = taskById.get(args.id);
+      if (!canEditTask(task)) return;
       updateTaskMutation.mutate(args);
     },
-    [updateTaskMutation],
+    [canEditTask, taskById, updateTaskMutation],
   );
 
   /** Default IDs for new task creation */
@@ -873,8 +939,11 @@ export default function DashboardClient() {
     [projects],
   );
   const defaultMemberId = useMemo(
-    () => members.find((m) => m.fullName === "Hoàng Văn Nhật Anh")?.id ?? members[0]?.id ?? "",
-    [members],
+    () =>
+      user?.role === "member"
+        ? (user.id ?? "")
+        : (members.find((m) => m.fullName === "Hoàng Văn Nhật Anh")?.id ?? members[0]?.id ?? ""),
+    [members, user?.id, user?.role],
   );
 
   const filteredMembers = useMemo(() => {
@@ -1012,7 +1081,10 @@ export default function DashboardClient() {
       activeTaskCell,
       mounted,
       canMutateTasks,
+      canAssignAnyMember,
+      canEditTask: (task: Task) => canEditTask(task),
       members,
+      assignableMembers,
       timelineMonthDays,
       setActiveTaskCell,
       updateTaskMutate,
@@ -1024,7 +1096,10 @@ export default function DashboardClient() {
       activeTaskCell,
       mounted,
       canMutateTasks,
+      canAssignAnyMember,
+      canEditTask,
       members,
+      assignableMembers,
       timelineMonthDays,
       updateTaskMutate,
       commitProgress,
@@ -1246,14 +1321,26 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL and redeplo
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <AppBar position="static" color="inherit" elevation={0}>
           <Toolbar className="border-b border-slate-200/80 bg-white/95 backdrop-blur" sx={{ justifyContent: "space-between" }}>
-            <Box>
-              <Typography fontWeight={800} className="text-slate-900">
-                {"Software team's work schedule"}
-              </Typography>
-              <Typography variant="caption" className="text-slate-500">
-                {"Thuan Ngo's Software Team"}
-              </Typography>
-            </Box>
+            <Stack direction="row" spacing={1.5} alignItems="center">
+              <Box
+                component="img"
+                src="/innova-logo.png"
+                alt="Innova logo"
+                sx={{
+                  height: 40,
+                  width: "auto",
+                  display: "block",
+                }}
+              />
+              <Box>
+                <Typography fontWeight={800} className="text-slate-900">
+                  {"Software team's work schedule"}
+                </Typography>
+                <Typography variant="caption" className="text-slate-500">
+                  {"Thuan Ngo's Software Team"}
+                </Typography>
+              </Box>
+            </Stack>
             <AppHeaderAuth />
           </Toolbar>
           <Box
@@ -1682,14 +1769,25 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL and redeplo
                         setAccountForm((prev) => ({ ...prev, fullName: event.target.value }))
                       }
                     />
-                    <TextField
-                      label="Email"
-                      type="email"
-                      value={accountForm.email}
-                      onChange={(event) =>
-                        setAccountForm((prev) => ({ ...prev, email: event.target.value }))
-                      }
-                    />
+                    <Stack direction="row" spacing={1.5}>
+                      <TextField
+                        label="Email"
+                        value={accountEmailLocalPart}
+                        onChange={(event) =>
+                          setAccountForm((prev) => ({
+                            ...prev,
+                            email: normalizeMemberEmailInput(event.target.value, false),
+                          }))
+                        }
+                        sx={{ flex: 1 }}
+                      />
+                      <TextField
+                        label="Domain"
+                        value={DEFAULT_MEMBER_EMAIL_DOMAIN}
+                        InputProps={{ readOnly: true }}
+                        sx={{ width: 190 }}
+                      />
+                    </Stack>
                     <TextField
                       label="Password"
                       type="password"
@@ -1793,6 +1891,7 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL and redeplo
         <DialogTitle>{editMember ? "Edit member" : "Add member"}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
+            {memberErrors._form ? <Alert severity="error">{memberErrors._form}</Alert> : null}
             <TextField
               key={`member-fullName-${memberFormInputKey}`}
               label="Full name"
@@ -1843,6 +1942,7 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL and redeplo
                 fullName: (memberFullNameInputRef.current?.value ?? "").trim(),
                 email: (memberEmailInputRef.current?.value ?? "").trim(),
               };
+              setMemberErrors({});
               const parsed = memberFormSchema.safeParse(payload);
               if (!parsed.success) {
                 setMemberErrors(parseFormErrors(parsed.error.issues));
@@ -1893,6 +1993,7 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL and redeplo
               label="Assignee"
               value={taskForm.assigneeMemberId}
               onChange={(e) => setTaskForm((s) => ({ ...s, assigneeMemberId: e.target.value }))}
+              disabled={user?.role === "member"}
               error={Boolean(taskErrors.assigneeMemberId)}
               helperText={taskErrors.assigneeMemberId}
             >
@@ -1938,6 +2039,7 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL and redeplo
                   const payload = {
                     ...taskForm,
                     title: (taskTitleInputRef.current?.value ?? "").trim(),
+                    assigneeMemberId: user?.role === "member" ? user.id : taskForm.assigneeMemberId,
                   };
                   const parsed = taskFormSchema.safeParse(payload);
                   if (!parsed.success) {

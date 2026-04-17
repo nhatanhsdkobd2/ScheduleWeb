@@ -12,6 +12,7 @@ import type {
   StatusDistributionItem,
   WeeklyReportRow,
 } from "@shared/types/domain";
+import { isAppAdminEmail } from "@/lib/app-admin";
 
 export interface DashboardPayload {
   summary: DashboardSummary;
@@ -43,9 +44,17 @@ const useApiProxy =
 /** Browser calls same-origin `/api/proxy/...` → Next rewrites to backend (avoids CORS on localhost dev). */
 const API_FETCH_BASE = useApiProxy ? "/api/proxy" : backendOrigin;
 let currentAuthRole: AuthLoginUser["role"] = "member";
+let currentAuthUserId: string | null = null;
+let currentAuthUserEmail: string | null = null;
 
 export function setApiAuthRole(role: AuthLoginUser["role"] | null | undefined): void {
   currentAuthRole = role ?? "member";
+}
+
+export function setApiAuthUserContext(user: Pick<AuthLoginUser, "id" | "email" | "role"> | null | undefined): void {
+  currentAuthRole = user?.role ?? "member";
+  currentAuthUserId = user?.id ?? null;
+  currentAuthUserEmail = user?.email ?? null;
 }
 
 export async function getDashboardData(): Promise<DashboardPayload> {
@@ -276,10 +285,20 @@ async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
-const roleHeaders = (role: "admin" | "lead" | "member" = currentAuthRole): HeadersInit => ({
-  "Content-Type": "application/json",
-  "x-role": role,
-});
+const roleHeaders = (role: "admin" | "lead" | "member" = currentAuthRole): HeadersInit => {
+  const elevatedRole = role === "member" && isAppAdminEmail(currentAuthUserEmail) ? "admin" : role;
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "x-role": elevatedRole,
+  };
+  if (currentAuthUserId) {
+    headers["x-user-id"] = currentAuthUserId;
+  }
+  if (currentAuthUserEmail) {
+    headers["x-user-email"] = currentAuthUserEmail;
+  }
+  return headers;
+};
 
 export async function getMembers(): Promise<Member[]> {
   const raw = await requestJson<unknown>(`${API_FETCH_BASE}/members`);

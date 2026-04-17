@@ -9,7 +9,10 @@ export interface TaskTableMeta {
   activeTaskCell: ActiveTaskCellState;
   mounted: boolean;
   canMutateTasks: boolean;
+  canAssignAnyMember: boolean;
+  canEditTask: (task: Task) => boolean;
   members: Member[];
+  assignableMembers: Member[];
   timelineMonthDays: Date[];
   setActiveTaskCell: (next: ActiveTaskCellState) => void;
   updateTaskMutate: (args: { id: string; payload: Partial<Omit<Task, "id">> }) => void;

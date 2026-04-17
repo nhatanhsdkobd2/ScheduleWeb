@@ -83,7 +83,17 @@ app.use(
   cors({
     origin: corsOrigin,
     methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS", "HEAD"],
-    allowedHeaders: ["Content-Type", "Authorization", "x-role", "X-Role", "Idempotency-Key"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "x-role",
+      "X-Role",
+      "x-user-id",
+      "X-User-Id",
+      "x-user-email",
+      "X-User-Email",
+      "Idempotency-Key",
+    ],
     optionsSuccessStatus: 204,
   }),
 );
@@ -107,9 +117,29 @@ app.use(
 );
 
 type UserRole = "admin" | "lead" | "member";
+type RequestAuthContext = {
+  role: UserRole;
+  userId: string | null;
+  userEmail: string | null;
+};
+
+function normalizeOptionalHeader(value: string | undefined): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim();
+  return normalized.length > 0 ? normalized : null;
+}
+
+function getRequestAuth(req: express.Request): RequestAuthContext {
+  return {
+    role: (req.header("x-role") ?? "member") as UserRole,
+    userId: normalizeOptionalHeader(req.header("x-user-id")),
+    userEmail: normalizeOptionalHeader(req.header("x-user-email"))?.toLowerCase() ?? null,
+  };
+}
+
 function requireRoles(allowed: UserRole[]) {
   return (req: express.Request, res: express.Response, next: express.NextFunction): void => {
-    const role = (req.header("x-role") ?? "member") as UserRole;
+    const role = getRequestAuth(req).role;
     if (!allowed.includes(role)) {
       res.status(403).json({ error: "Forbidden" });
       return;
@@ -427,11 +457,20 @@ const taskCreateSchema = z.object({
   plannedStartDate: z.string().optional(),
 });
 
-app.post("/tasks", requireRoles(["admin", "lead"]), async (req, res) => {
+app.post("/tasks", requireRoles(["admin", "lead", "member"]), async (req, res) => {
+  const auth = getRequestAuth(req);
   const parsed = taskCreateSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
   if (!(await findProjectById(parsed.data.projectId))) return res.status(400).json({ error: "projectId invalid" });
   if (!(await findMemberById(parsed.data.assigneeMemberId))) return res.status(400).json({ error: "assigneeMemberId invalid" });
+  if (auth.role === "member") {
+    if (!auth.userId) {
+      return res.status(403).json({ error: "Member context missing (x-user-id)" });
+    }
+    if (parsed.data.assigneeMemberId !== auth.userId) {
+      return res.status(403).json({ error: "Members can only assign tasks to themselves" });
+    }
+  }
   if (new Date(parsed.data.dueDate).getTime() < Date.now() - 3650 * 24 * 60 * 60 * 1000) {
     return res.status(400).json({ error: "dueDate invalid" });
   }
@@ -486,13 +525,25 @@ const taskPatchSchema = z
   })
   .strict();
 
-app.patch("/tasks/:id", requireRoles(["admin", "lead"]), async (req, res) => {
+app.patch("/tasks/:id", requireRoles(["admin", "lead", "member"]), async (req, res) => {
+  const auth = getRequestAuth(req);
   const taskId = getRequiredParam(req, "id");
   if (!taskId) return res.status(400).json({ error: "Invalid task id" });
   const parsed = taskPatchSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
   const current = await findTaskById(taskId);
   if (!current) return res.status(404).json({ error: "Task not found" });
+  if (auth.role === "member") {
+    if (!auth.userId) {
+      return res.status(403).json({ error: "Member context missing (x-user-id)" });
+    }
+    if (current.assigneeMemberId !== auth.userId) {
+      return res.status(403).json({ error: "Members can only edit their own tasks" });
+    }
+    if (parsed.data.assigneeMemberId && parsed.data.assigneeMemberId !== auth.userId) {
+      return res.status(403).json({ error: "Members cannot reassign tasks to other members" });
+    }
+  }
   if (parsed.data.assigneeMemberId && !(await findMemberById(parsed.data.assigneeMemberId))) {
     return res.status(400).json({ error: "assigneeMemberId invalid" });
   }

@@ -125,13 +125,14 @@ export function createTaskColumns(timelineMonthDays: Date[]): ColumnDef<TaskTabl
       accessorKey: "title",
       cell: ({ row, table }) => {
         const m = meta(table);
+        const canEditThisTask = m.canEditTask(row.original.raw);
         return (
           <Box sx={{ flexGrow: 1, minWidth: 420 }}>
             <TaskDescriptionEditor
               key={row.original.id}
               taskId={row.original.id}
               currentTitle={row.original.title}
-              canMutate={m.canMutateTasks}
+              canMutate={canEditThisTask}
               onCommit={m.commitTaskTitle}
             />
           </Box>
@@ -147,15 +148,17 @@ export function createTaskColumns(timelineMonthDays: Date[]): ColumnDef<TaskTabl
       ),
       cell: ({ row, table }) => {
         const m = meta(table);
+        const canEditThisTask = m.canEditTask(row.original.raw);
         const isEditing =
           m.activeTaskCell?.taskId === row.original.id && m.activeTaskCell.field === "assignee";
+        const canEditAssignee = canEditThisTask && m.canMutateTasks && m.canAssignAnyMember;
         if (!isEditing) {
           return (
             <Typography
               variant="body2"
-              sx={{ cursor: m.canMutateTasks ? "pointer" : "default", minWidth: 170, whiteSpace: "nowrap" }}
+              sx={{ cursor: canEditAssignee ? "pointer" : "default", minWidth: 170, whiteSpace: "nowrap" }}
               onClick={() => {
-                if (m.canMutateTasks) m.setActiveTaskCell({ taskId: row.original.id, field: "assignee" });
+                if (canEditAssignee) m.setActiveTaskCell({ taskId: row.original.id, field: "assignee" });
               }}
             >
               {row.original.assigneeName}
@@ -179,7 +182,7 @@ export function createTaskColumns(timelineMonthDays: Date[]): ColumnDef<TaskTabl
             autoFocus
             sx={{ minWidth: 170, "& .MuiSelect-select": { py: 0.5, whiteSpace: "nowrap" } }}
           >
-            {m.members.map((mem) => (
+            {m.assignableMembers.map((mem) => (
               <MenuItem key={mem.id} value={mem.id}>
                 {mem.fullName}
               </MenuItem>
@@ -197,14 +200,15 @@ export function createTaskColumns(timelineMonthDays: Date[]): ColumnDef<TaskTabl
       ),
       cell: ({ row, table }) => {
         const m = meta(table);
+        const canEditThisTask = m.canEditTask(row.original.raw);
         const isEditing = m.activeTaskCell?.taskId === row.original.id && m.activeTaskCell.field === "start";
         if (!isEditing) {
           return (
             <Typography
               variant="body2"
-              sx={{ cursor: m.canMutateTasks ? "pointer" : "default", minWidth: 120, whiteSpace: "nowrap" }}
+              sx={{ cursor: canEditThisTask ? "pointer" : "default", minWidth: 120, whiteSpace: "nowrap" }}
               onClick={() => {
-                if (m.canMutateTasks) m.setActiveTaskCell({ taskId: row.original.id, field: "start" });
+                if (canEditThisTask) m.setActiveTaskCell({ taskId: row.original.id, field: "start" });
               }}
             >
               {row.original.startDate}
@@ -214,7 +218,7 @@ export function createTaskColumns(timelineMonthDays: Date[]): ColumnDef<TaskTabl
         return (
           <InlineDateEditor
             value={row.original.raw.plannedStartDate ?? new Date().toISOString().slice(0, 10)}
-            canMutate={m.canMutateTasks}
+            canMutate={canEditThisTask}
             onChange={(next) => m.updateTaskMutate({ id: row.original.id, payload: { plannedStartDate: next } })}
             onClose={() => m.setActiveTaskCell(null)}
           />
@@ -243,14 +247,15 @@ export function createTaskColumns(timelineMonthDays: Date[]): ColumnDef<TaskTabl
       ),
       cell: ({ row, table }) => {
         const m = meta(table);
+        const canEditThisTask = m.canEditTask(row.original.raw);
         const isEditing = m.activeTaskCell?.taskId === row.original.id && m.activeTaskCell.field === "complete";
         if (!isEditing) {
           return (
             <Typography
               variant="body2"
-              sx={{ cursor: m.canMutateTasks ? "pointer" : "default", minWidth: 130, whiteSpace: "nowrap" }}
+              sx={{ cursor: canEditThisTask ? "pointer" : "default", minWidth: 130, whiteSpace: "nowrap" }}
               onClick={() => {
-                if (m.canMutateTasks) m.setActiveTaskCell({ taskId: row.original.id, field: "complete" });
+                if (canEditThisTask) m.setActiveTaskCell({ taskId: row.original.id, field: "complete" });
               }}
             >
               {row.original.completeDate}
@@ -260,7 +265,7 @@ export function createTaskColumns(timelineMonthDays: Date[]): ColumnDef<TaskTabl
         return (
           <InlineDateEditor
             value={row.original.raw.dueDate}
-            canMutate={m.canMutateTasks}
+            canMutate={canEditThisTask}
             onChange={(next) => m.updateTaskMutate({ id: row.original.id, payload: { dueDate: next } })}
             onClose={() => m.setActiveTaskCell(null)}
           />
@@ -276,14 +281,15 @@ export function createTaskColumns(timelineMonthDays: Date[]): ColumnDef<TaskTabl
       ),
       cell: ({ row, table }) => {
         const m = meta(table);
+        const canEditThisTask = m.canEditTask(row.original.raw);
         const isEditing = m.activeTaskCell?.taskId === row.original.id && m.activeTaskCell.field === "priority";
         if (!isEditing) {
           return (
             <Typography
               variant="body2"
-              sx={{ cursor: m.canMutateTasks ? "pointer" : "default", minWidth: 110, whiteSpace: "nowrap" }}
+              sx={{ cursor: canEditThisTask ? "pointer" : "default", minWidth: 110, whiteSpace: "nowrap" }}
               onClick={() => {
-                if (m.canMutateTasks) m.setActiveTaskCell({ taskId: row.original.id, field: "priority" });
+                if (canEditThisTask) m.setActiveTaskCell({ taskId: row.original.id, field: "priority" });
               }}
             >
               {row.original.priority}
@@ -297,7 +303,7 @@ export function createTaskColumns(timelineMonthDays: Date[]): ColumnDef<TaskTabl
             variant="standard"
             fullWidth
             value={row.original.raw.priority}
-            disabled={!m.canMutateTasks}
+            disabled={!canEditThisTask}
             InputProps={{ disableUnderline: true }}
             onChange={(e) => {
               m.updateTaskMutate({
@@ -323,6 +329,7 @@ export function createTaskColumns(timelineMonthDays: Date[]): ColumnDef<TaskTabl
       header: "Progress",
       cell: ({ row, table }) => {
         const m = meta(table);
+        const canEditThisTask = m.canEditTask(row.original.raw);
         const progress = row.original.progress;
         const dueDate = new Date(row.original.raw.dueDate);
         if (!m.mounted) {
@@ -332,7 +339,7 @@ export function createTaskColumns(timelineMonthDays: Date[]): ColumnDef<TaskTabl
                 key={row.original.id}
                 taskId={row.original.id}
                 currentProgress={progress}
-                canMutate={m.canMutateTasks}
+                  canMutate={canEditThisTask}
                 isOverdue={false}
                 isDone={progress === 100}
                 onCommit={m.commitProgress}
@@ -355,7 +362,7 @@ export function createTaskColumns(timelineMonthDays: Date[]): ColumnDef<TaskTabl
                   key={row.original.id}
                   taskId={row.original.id}
                   currentProgress={progress}
-                  canMutate={m.canMutateTasks}
+                  canMutate={canEditThisTask}
                   isOverdue={overdue}
                   isDone={progress === 100}
                   onCommit={m.commitProgress}
