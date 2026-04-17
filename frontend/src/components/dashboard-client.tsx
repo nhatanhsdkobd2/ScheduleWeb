@@ -16,6 +16,7 @@ import {
   Drawer,
   FormControlLabel,
   Grid,
+  IconButton,
   InputAdornment,
   MenuItem,
   Stack,
@@ -400,23 +401,37 @@ function AppHeaderAuth() {
           </Typography>
         ) : null}
       </Box>
-      <Button
-        component={Link}
-        href="/change-password"
-        variant="text"
-        size="small"
-        sx={{ textTransform: "none", fontWeight: 600, color: "#0f172a" }}
-      >
-        Change password
-      </Button>
-      <Button
-        variant="text"
-        size="small"
-        onClick={() => void signOutUser()}
-        sx={{ textTransform: "none", fontWeight: 600, color: "#0f172a" }}
-      >
-        Sign out
-      </Button>
+      <MuiTooltip title="Change password" arrow>
+        <IconButton
+          component={Link}
+          href="/change-password"
+          size="small"
+          aria-label="Change password"
+          sx={{ p: 0.5 }}
+        >
+          <Box
+            component="img"
+            src="/icon-change-password.png"
+            alt="Change password"
+            sx={{ width: 22, height: 22, display: "block" }}
+          />
+        </IconButton>
+      </MuiTooltip>
+      <MuiTooltip title="Sign out" arrow>
+        <IconButton
+          size="small"
+          onClick={() => void signOutUser()}
+          aria-label="Sign out"
+          sx={{ p: 0.5 }}
+        >
+          <Box
+            component="img"
+            src="/icon-logout.png"
+            alt="Sign out"
+            sx={{ width: 22, height: 22, display: "block" }}
+          />
+        </IconButton>
+      </MuiTooltip>
     </Stack>
   );
 }
