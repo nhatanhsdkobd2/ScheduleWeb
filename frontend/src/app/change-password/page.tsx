@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Box, Button, CircularProgress, Container, Stack, TextField, Typography } from "@mui/material";
+import { AppBar, Box, Button, CircularProgress, Container, Stack, TextField, Toolbar, Typography } from "@mui/material";
 import { useAuth } from "@/context/AuthContext";
 
 export default function ChangePasswordPage() {
@@ -64,62 +64,84 @@ export default function ChangePasswordPage() {
   }
 
   return (
-    <Container maxWidth="sm" sx={{ py: 8 }}>
-      <Stack spacing={2.5}>
-        <Typography variant="h4" component="h1" fontWeight={700}>
-          Change Password
-        </Typography>
-        <Typography color="text.secondary">
-          First login detected. Please change your password before using the system.
-        </Typography>
-        <TextField
-          label="Current password"
-          type="password"
-          autoComplete="current-password"
-          value={currentPassword}
-          onChange={(event) => setCurrentPassword(event.target.value)}
-          fullWidth
-        />
-        <TextField
-          label="New password"
-          type="password"
-          autoComplete="new-password"
-          value={newPassword}
-          onChange={(event) => setNewPassword(event.target.value)}
-          fullWidth
-        />
-        <TextField
-          label="Confirm new password"
-          type="password"
-          autoComplete="new-password"
-          value={confirmPassword}
-          onChange={(event) => setConfirmPassword(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              void handleChangePassword();
-            }
-          }}
-          fullWidth
-        />
-        <Stack direction="row" spacing={1.5}>
-          <Button variant="contained" disabled={submitting} onClick={() => void handleChangePassword()}>
-            {submitting ? "Saving..." : "Update password"}
-          </Button>
-          <Button
-            variant="text"
-            color="inherit"
-            onClick={() => void signOutUser().then(() => router.replace("/login"))}
-          >
-            Logout
-          </Button>
-        </Stack>
-        {errorText ? (
-          <Typography color="error" textAlign="left">
-            {errorText}
+    <Box sx={{ minHeight: "100vh", bgcolor: "#fff" }}>
+      <AppBar position="static" color="inherit" elevation={0}>
+        <Toolbar className="border-b border-slate-200/80 bg-white/95 backdrop-blur" sx={{ justifyContent: "flex-start" }}>
+          <Stack direction="row" spacing={1.5} alignItems="center">
+            <Box
+              component="img"
+              src="/innova-logo.png"
+              alt="Innova logo"
+              sx={{ height: 40, width: "auto", display: "block" }}
+            />
+            <Box>
+              <Typography fontWeight={800} className="text-slate-900">
+                {"Software team's work schedule"}
+              </Typography>
+              <Typography variant="caption" className="text-slate-500">
+                {"Thuan Ngo's Software Team"}
+              </Typography>
+            </Box>
+          </Stack>
+        </Toolbar>
+      </AppBar>
+      <Container maxWidth="sm" sx={{ py: 8 }}>
+        <Stack spacing={2.5}>
+          <Typography variant="h4" component="h1" fontWeight={700}>
+            Change Password
           </Typography>
-        ) : null}
-      </Stack>
-    </Container>
+          <Typography color="text.secondary">
+            First login detected. Please change your password before using the system.
+          </Typography>
+          <TextField
+            label="Current password"
+            type="password"
+            autoComplete="current-password"
+            value={currentPassword}
+            onChange={(event) => setCurrentPassword(event.target.value)}
+            fullWidth
+          />
+          <TextField
+            label="New password"
+            type="password"
+            autoComplete="new-password"
+            value={newPassword}
+            onChange={(event) => setNewPassword(event.target.value)}
+            fullWidth
+          />
+          <TextField
+            label="Confirm new password"
+            type="password"
+            autoComplete="new-password"
+            value={confirmPassword}
+            onChange={(event) => setConfirmPassword(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                void handleChangePassword();
+              }
+            }}
+            fullWidth
+          />
+          <Stack direction="row" spacing={1.5}>
+            <Button variant="contained" disabled={submitting} onClick={() => void handleChangePassword()}>
+              {submitting ? "Saving..." : "Update password"}
+            </Button>
+            <Button
+              variant="text"
+              color="inherit"
+              onClick={() => void signOutUser().then(() => router.replace("/login"))}
+            >
+              Logout
+            </Button>
+          </Stack>
+          {errorText ? (
+            <Typography color="error" textAlign="left">
+              {errorText}
+            </Typography>
+          ) : null}
+        </Stack>
+      </Container>
+    </Box>
   );
 }

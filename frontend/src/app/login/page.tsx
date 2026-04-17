@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Box, Button, CircularProgress, Container, Stack, TextField, Typography } from "@mui/material";
+import { AppBar, Box, Button, CircularProgress, Container, Stack, TextField, Toolbar, Typography } from "@mui/material";
 import { useAuth } from "@/context/AuthContext";
 
 export default function LoginPage() {
@@ -56,51 +56,73 @@ export default function LoginPage() {
   }
 
   return (
-    <Container maxWidth="sm" sx={{ py: 8 }}>
-      <Stack spacing={3} alignItems="center">
-        <Typography variant="h4" component="h1" fontWeight={700}>
-          Sign in
-        </Typography>
-        <Typography color="text.secondary" textAlign="center">
-          Use your company account email and password.
-        </Typography>
-        <TextField
-          label="Email"
-          type="email"
-          fullWidth
-          autoComplete="username"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-        />
-        <TextField
-          label="Password"
-          type="password"
-          fullWidth
-          autoComplete="current-password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              void handleLogin();
-            }
-          }}
-        />
-        <Button
-          variant="contained"
-          size="large"
-          onClick={() => void handleLogin()}
-          disabled={submitting}
-          sx={{ px: 3, py: 1.5, textTransform: "none", fontWeight: 600 }}
-        >
-          {submitting ? "Signing in..." : "Sign in"}
-        </Button>
-        {errorText ? (
-          <Typography color="error" textAlign="center">
-            {errorText}
+    <Box sx={{ minHeight: "100vh", bgcolor: "#fff" }}>
+      <AppBar position="static" color="inherit" elevation={0}>
+        <Toolbar className="border-b border-slate-200/80 bg-white/95 backdrop-blur" sx={{ justifyContent: "flex-start" }}>
+          <Stack direction="row" spacing={1.5} alignItems="center">
+            <Box
+              component="img"
+              src="/innova-logo.png"
+              alt="Innova logo"
+              sx={{ height: 40, width: "auto", display: "block" }}
+            />
+            <Box>
+              <Typography fontWeight={800} className="text-slate-900">
+                {"Software team's work schedule"}
+              </Typography>
+              <Typography variant="caption" className="text-slate-500">
+                {"Thuan Ngo's Software Team"}
+              </Typography>
+            </Box>
+          </Stack>
+        </Toolbar>
+      </AppBar>
+      <Container maxWidth="sm" sx={{ py: 8 }}>
+        <Stack spacing={3}>
+          <Typography variant="h4" component="h1" fontWeight={700} textAlign="center">
+            Sign in
           </Typography>
-        ) : null}
-      </Stack>
-    </Container>
+          <Typography color="text.secondary" textAlign="center">
+            Use your company account email and password.
+          </Typography>
+          <TextField
+            label="Email"
+            type="email"
+            fullWidth
+            autoComplete="username"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+          />
+          <TextField
+            label="Password"
+            type="password"
+            fullWidth
+            autoComplete="current-password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                void handleLogin();
+              }
+            }}
+          />
+          <Button
+            variant="contained"
+            size="large"
+            onClick={() => void handleLogin()}
+            disabled={submitting}
+            sx={{ px: 3, py: 1.5, textTransform: "none", fontWeight: 600, alignSelf: "center" }}
+          >
+            {submitting ? "Signing in..." : "Sign in"}
+          </Button>
+          {errorText ? (
+            <Typography color="error" textAlign="center">
+              {errorText}
+            </Typography>
+          ) : null}
+        </Stack>
+      </Container>
+    </Box>
   );
 }
