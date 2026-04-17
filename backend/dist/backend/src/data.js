@@ -71,6 +71,7 @@ const MEMBER_EMAIL_OVERRIDES = {
     "Trần Hữu Quang Trường": "truong.tran@vn.innova.com",
     "Nguyễn Thái Dương": "duong.nguyen@vn.innova.com",
     "Lương Nguyễn Bảo Châu": "chau.luong@vn.innova.com",
+    "Nguyễn Ngọc Bảo Kha": "kha.nguyenngoc@vn.innova.com",
 };
 const MEMBER_ROLE_OVERRIDES_BY_EMAIL = {
     "chau.luong@vn.innova.com": "lead",

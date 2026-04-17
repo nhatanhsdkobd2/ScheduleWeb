@@ -1,3 +1,7 @@
-◇ injected env (0) from .env // tip: ⌘ enable debugging { debug: true }
-◇ injected env (2) from ../.env // tip: ⌘ custom filepath { path: '/custom/path/.env' }
+
+> backend@1.0.0 start
+> node dist/backend/src/server.js
+
+◇ injected env (0) from .env // tip: ◈ secrets for agents [www.dotenvx.com]
+◇ injected env (2) from ../.env // tip: ◈ secrets for agents [www.dotenvx.com]
 Backend listening on http://0.0.0.0:4000

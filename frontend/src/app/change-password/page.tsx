@@ -18,10 +18,6 @@ export default function ChangePasswordPage() {
     if (loading) return;
     if (!user) {
       router.replace("/login");
-      return;
-    }
-    if (!user.mustChangePassword) {
-      router.replace("/");
     }
   }, [loading, user, router]);
 
@@ -91,7 +87,9 @@ export default function ChangePasswordPage() {
             Change Password
           </Typography>
           <Typography color="text.secondary">
-            First login detected. Please change your password before using the system.
+            {user.mustChangePassword
+              ? "First login detected. Please change your password before using the system."
+              : "Update your account password."}
           </Typography>
           <TextField
             label="Current password"

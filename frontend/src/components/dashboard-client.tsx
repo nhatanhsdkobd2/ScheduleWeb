@@ -401,6 +401,15 @@ function AppHeaderAuth() {
         ) : null}
       </Box>
       <Button
+        component={Link}
+        href="/change-password"
+        variant="text"
+        size="small"
+        sx={{ textTransform: "none", fontWeight: 600, color: "#0f172a" }}
+      >
+        Change password
+      </Button>
+      <Button
         variant="text"
         size="small"
         onClick={() => void signOutUser()}

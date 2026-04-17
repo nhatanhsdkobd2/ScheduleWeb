@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { AppBar, Box, Button, CircularProgress, Container, Stack, TextField, Toolbar, Typography } from "@mui/material";
+import { Alert, AppBar, Box, Button, CircularProgress, Container, Stack, TextField, Toolbar, Typography } from "@mui/material";
 import { useAuth } from "@/context/AuthContext";
 
 export default function LoginPage() {
@@ -20,6 +20,17 @@ export default function LoginPage() {
     }
   }, [user, loading, router]);
 
+  const toFriendlyLoginMessage = (raw: string): string => {
+    const normalized = raw.trim().toLowerCase();
+    if (normalized.includes("invalid email or password")) {
+      return "Email hoặc mật khẩu không đúng. Vui lòng kiểm tra và thử lại.";
+    }
+    if (normalized.includes("cannot connect to backend")) {
+      return "Không thể kết nối máy chủ. Vui lòng kiểm tra backend hoặc thử lại sau.";
+    }
+    return "Đăng nhập thất bại. Vui lòng thử lại.";
+  };
+
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
       setErrorText("Please enter email and password.");
@@ -32,8 +43,7 @@ export default function LoginPage() {
       router.replace(signedInUser.mustChangePassword ? "/change-password" : "/");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Login failed";
-      setErrorText(message);
-      console.error("[auth] Email/password sign-in failed:", error);
+      setErrorText(toFriendlyLoginMessage(message));
     } finally {
       setSubmitting(false);
     }
@@ -116,11 +126,7 @@ export default function LoginPage() {
           >
             {submitting ? "Signing in..." : "Sign in"}
           </Button>
-          {errorText ? (
-            <Typography color="error" textAlign="center">
-              {errorText}
-            </Typography>
-          ) : null}
+          {errorText ? <Alert severity="error">{errorText}</Alert> : null}
         </Stack>
       </Container>
     </Box>

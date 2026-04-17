@@ -108,3 +108,64 @@ The available values are `m-1776404769078-0`, `m-1776404769078-1`, `m-1776404769
  GET /change-password 200 in 13ms (next.js: 1258µs, proxy.ts: 2ms, application-code: 10ms)
  GET / 200 in 31ms (next.js: 10ms, application-code: 21ms)
  GET / 200 in 12ms (next.js: 3ms, application-code: 8ms)
+ GET / 200 in 295ms (next.js: 10ms, application-code: 286ms)
+ GET /change-password 200 in 40ms (next.js: 9ms, proxy.ts: 5ms, application-code: 27ms)
+ GET / 200 in 14ms (next.js: 2ms, application-code: 12ms)
+ GET /login 200 in 36ms (next.js: 7ms, proxy.ts: 6ms, application-code: 23ms)
+ GET / 200 in 25ms (next.js: 3ms, application-code: 23ms)
+ GET / 200 in 12ms (next.js: 1217µs, application-code: 10ms)
+ GET /login 200 in 30ms (next.js: 5ms, proxy.ts: 5ms, application-code: 20ms)
+[browser] [auth] Email/password sign-in failed: Error: Invalid email or password
+    at requestJson (src/lib/api.ts:282:11)
+    at async loginWithEmailPassword (src/lib/api.ts:72:19)
+    at async AuthProvider.useCallback[signInWithPassword] (src/context/AuthContext.tsx:93:26)
+    at async handleLogin (src/app/login/page.tsx:31:28)
+  280 |       // ignore parse errors on error response
+  281 |     }
+> 282 |     throw new Error(message);
+      |           ^
+  283 |   }
+  284 |
+  285 |   return (await response.json()) as T; (src/app/login/page.tsx:36:15)
+ GET / 200 in 27ms (next.js: 3ms, application-code: 24ms)
+ GET / 200 in 12ms (next.js: 1224µs, application-code: 11ms)
+ GET / 200 in 54ms (next.js: 6ms, application-code: 48ms)
+ GET /login 200 in 33ms (next.js: 7ms, proxy.ts: 6ms, application-code: 21ms)
+[browser] [auth] Email/password sign-in failed: Error: Invalid email or password
+    at requestJson (src/lib/api.ts:282:11)
+    at async loginWithEmailPassword (src/lib/api.ts:72:19)
+    at async AuthProvider.useCallback[signInWithPassword] (src/context/AuthContext.tsx:93:26)
+    at async handleLogin (src/app/login/page.tsx:31:28)
+  280 |       // ignore parse errors on error response
+  281 |     }
+> 282 |     throw new Error(message);
+      |           ^
+  283 |   }
+  284 |
+  285 |   return (await response.json()) as T; (src/app/login/page.tsx:36:15)
+[browser] [auth] Email/password sign-in failed: Error: Invalid email or password
+    at requestJson (src/lib/api.ts:282:11)
+    at async loginWithEmailPassword (src/lib/api.ts:72:19)
+    at async AuthProvider.useCallback[signInWithPassword] (src/context/AuthContext.tsx:93:26)
+    at async handleLogin (src/app/login/page.tsx:31:28)
+  280 |       // ignore parse errors on error response
+  281 |     }
+> 282 |     throw new Error(message);
+      |           ^
+  283 |   }
+  284 |
+  285 |   return (await response.json()) as T; (src/app/login/page.tsx:36:15)
+ GET /change-password 200 in 32ms (next.js: 3ms, proxy.ts: 4ms, application-code: 26ms)
+ GET /change-password 200 in 15ms (next.js: 2ms, proxy.ts: 2ms, application-code: 10ms)
+ GET /login 200 in 50ms (next.js: 4ms, proxy.ts: 5ms, application-code: 41ms)
+ GET /login 200 in 20ms (next.js: 3ms, proxy.ts: 3ms, application-code: 15ms)
+✓ Compiled in 67ms
+ GET /login 200 in 107ms (next.js: 46ms, proxy.ts: 25ms, application-code: 36ms)
+ GET /login 200 in 141ms (next.js: 7ms, proxy.ts: 6ms, application-code: 128ms)
+ GET /change-password 200 in 45ms (next.js: 13ms, proxy.ts: 4ms, application-code: 28ms)
+ GET /change-password 200 in 13ms (next.js: 1321µs, proxy.ts: 1351µs, application-code: 10ms)
+ GET / 200 in 28ms (next.js: 12ms, application-code: 16ms)
+ GET /login 200 in 39ms (next.js: 6ms, proxy.ts: 5ms, application-code: 28ms)
+ GET /change-password 200 in 44ms (next.js: 3ms, proxy.ts: 3ms, application-code: 38ms)
+ GET /change-password 200 in 16ms (next.js: 1752µs, proxy.ts: 1713µs, application-code: 12ms)
+ GET / 200 in 30ms (next.js: 5ms, application-code: 25ms)
