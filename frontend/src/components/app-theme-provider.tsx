@@ -17,7 +17,12 @@ const THEME_MODE_STORAGE_KEY = "schedule-web-theme-mode";
 const AppThemeContext = createContext<AppThemeContextValue | null>(null);
 
 export default function AppThemeProvider({ children }: { children: React.ReactNode }) {
-  const [mode, setMode] = useState<AppThemeMode>("light");
+  const [mode, setMode] = useState<AppThemeMode>(() => {
+    if (typeof window === "undefined") return "dark";
+    const storedMode = window.localStorage.getItem(THEME_MODE_STORAGE_KEY);
+    if (storedMode === "light" || storedMode === "dark") return storedMode;
+    return "dark";
+  });
 
   useEffect(() => {
     const storedMode = typeof window !== "undefined" ? window.localStorage.getItem(THEME_MODE_STORAGE_KEY) : null;
