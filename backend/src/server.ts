@@ -35,6 +35,7 @@ import {
   reportHistory,
   assignMemberToProject,
   softDeleteMember,
+  softDeleteTask,
   taskHistory,
   updateMember,
   updateProject,
@@ -583,6 +584,15 @@ app.patch("/tasks/:id", requireRoles(["admin", "lead", "member"]), async (req, r
   if (!updated) return res.status(500).json({ error: "Task update failed" });
   emitEntityUpdated({ type: "tasks", taskIds: [updated.id] });
   return res.json(updated);
+});
+
+app.delete("/tasks/:id", requireRoles(["admin", "lead", "member"]), async (req, res) => {
+  const taskId = getRequiredParam(req, "id");
+  if (!taskId) return res.status(400).json({ error: "Invalid task id" });
+  const deleted = await softDeleteTask(taskId);
+  if (!deleted) return res.status(404).json({ error: "Task not found" });
+  emitEntityUpdated({ type: "tasks", taskIds: [taskId] });
+  return res.json({ status: "deleted", task: deleted });
 });
 
 app.get("/tasks/:id/history", (req, res) => {

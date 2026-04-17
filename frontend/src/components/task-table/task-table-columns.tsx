@@ -1,6 +1,6 @@
 "use client";
 
-import { Box, MenuItem, TextField, Tooltip as MuiTooltip, Typography, useTheme } from "@mui/material";
+import { Box, IconButton, MenuItem, TextField, Tooltip as MuiTooltip, Typography, useTheme } from "@mui/material";
 import type { ColumnDef } from "@tanstack/react-table";
 import { format } from "date-fns";
 import type { Task } from "@shared/types/domain";
@@ -422,6 +422,40 @@ export function createTaskColumns(timelineMonthDays: Date[]): ColumnDef<TaskTabl
         </Box>
       ),
       cell: ({ row }) => <TaskTimelineRowSvgCell rowOriginal={row.original} days={timelineMonthDays} />,
+    },
+    {
+      id: "actions",
+      header: "Actions",
+      cell: ({ row, table }) => {
+        const m = meta(table);
+        if (!m.canMutateTasks) {
+          return (
+            <Typography variant="body2" color="text.secondary">
+              —
+            </Typography>
+          );
+        }
+        return (
+          <MuiTooltip title="Delete task" arrow>
+            <IconButton
+              size="small"
+              color="error"
+              onClick={() => {
+                m.deleteTaskMutate(row.original.id);
+              }}
+              aria-label="Delete task"
+              sx={{ p: 0.5 }}
+            >
+              <Box
+                component="img"
+                src="/icon-task-delete.png"
+                alt="Delete task"
+                sx={{ width: 18, height: 18, display: "block" }}
+              />
+            </IconButton>
+          </MuiTooltip>
+        );
+      },
     },
   ];
 }

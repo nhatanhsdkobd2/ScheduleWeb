@@ -7,7 +7,7 @@ import { unlink } from "node:fs/promises";
 import { z } from "zod";
 import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
-import { addAuditLog, auditLogs, createMember, createProject, createReportRecord, createTask, findMemberById, findProjectById, findTaskById, getDashboardSummary, getDelayTrend, getMembersForRead, getMonthlyReportRows, getPerformance, getPerformanceByPeriod, getProjectsForRead, getTasks, loadOrInitializePersistence, softDeleteProject, getStatusDistribution, getWeeklyReportRows, projectMembers, removeMemberFromProject, reportHistory, assignMemberToProject, softDeleteMember, taskHistory, updateMember, updateProject, updateReportRecord, updateTask, } from "./data.js";
+import { addAuditLog, auditLogs, createMember, createProject, createReportRecord, createTask, findMemberById, findProjectById, findTaskById, getDashboardSummary, getDelayTrend, getMembersForRead, getMonthlyReportRows, getPerformance, getPerformanceByPeriod, getProjectsForRead, getTasks, loadOrInitializePersistence, softDeleteProject, getStatusDistribution, getWeeklyReportRows, projectMembers, removeMemberFromProject, reportHistory, assignMemberToProject, softDeleteMember, softDeleteTask, taskHistory, updateMember, updateProject, updateReportRecord, updateTask, } from "./data.js";
 import { getPool, isPersistenceEnabled } from "./db/index.js";
 import { nextTaskCodeFromDb } from "./db/task-store.js";
 import { generateExcelReport, generatePdfReport } from "./report-generator.js";
@@ -523,6 +523,16 @@ app.patch("/tasks/:id", requireRoles(["admin", "lead", "member"]), async (req, r
         return res.status(500).json({ error: "Task update failed" });
     emitEntityUpdated({ type: "tasks", taskIds: [updated.id] });
     return res.json(updated);
+});
+app.delete("/tasks/:id", requireRoles(["admin", "lead", "member"]), async (req, res) => {
+    const taskId = getRequiredParam(req, "id");
+    if (!taskId)
+        return res.status(400).json({ error: "Invalid task id" });
+    const deleted = await softDeleteTask(taskId);
+    if (!deleted)
+        return res.status(404).json({ error: "Task not found" });
+    emitEntityUpdated({ type: "tasks", taskIds: [taskId] });
+    return res.json({ status: "deleted", task: deleted });
 });
 app.get("/tasks/:id/history", (req, res) => {
     const taskId = getRequiredParam(req, "id");

@@ -28,3 +28,14 @@
  GET /change-password 200 in 35ms (next.js: 4ms, proxy.ts: 4ms, application-code: 27ms)
  GET /change-password 200 in 15ms (next.js: 3ms, proxy.ts: 1682µs, application-code: 11ms)
  GET / 200 in 11ms (next.js: 1696µs, application-code: 9ms)
+ GET / 200 in 57ms (next.js: 6ms, application-code: 51ms)
+ GET / 200 in 56ms (next.js: 5ms, application-code: 51ms)
+⚠ Fast Refresh had to perform a full reload when ./Downloads/ScheduleWebNew/frontend/src/lib/api.ts changed. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+✓ Compiled in 50ms
+ GET / 200 in 42ms (next.js: 8ms, application-code: 34ms)
+✓ Compiled in 48ms
+✓ Compiled in 75ms
+ GET / 200 in 71ms (next.js: 14ms, application-code: 57ms)
+✓ Compiled in 31ms
+✓ Compiled in 80ms
+✓ Compiled in 57ms

@@ -416,6 +416,13 @@ export async function updateTask(id: string, payload: Partial<Omit<Task, "id">>)
   });
 }
 
+export async function deleteTask(id: string): Promise<void> {
+  await requestJson<{ status: string }>(`${API_FETCH_BASE}/tasks/${id}`, {
+    method: "DELETE",
+    headers: roleHeaders(),
+  });
+}
+
 export async function getTaskHistory(taskId: string): Promise<TaskHistoryItem[]> {
   return requestJson<TaskHistoryItem[]>(`${API_FETCH_BASE}/tasks/${taskId}/history`);
 }

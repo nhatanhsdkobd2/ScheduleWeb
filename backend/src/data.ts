@@ -936,6 +936,30 @@ export async function updateTask(id: string, patch: Partial<Omit<Task, "id">>): 
   return task;
 }
 
+export async function softDeleteTask(id: string): Promise<Task | undefined> {
+  if (isPersistenceEnabled()) {
+    const deleted = await updateTaskInDb(id, { deletedAt: nowIso() });
+    if (!deleted) return undefined;
+    addAuditLog({
+      action: "task.delete",
+      entityType: "task",
+      entityId: deleted.id,
+      metadata: { taskCode: deleted.taskCode },
+    });
+    return deleted;
+  }
+  const task = tasks.find((item) => item.id === id && !item.deletedAt);
+  if (!task) return undefined;
+  task.deletedAt = nowIso();
+  addAuditLog({
+    action: "task.delete",
+    entityType: "task",
+    entityId: task.id,
+    metadata: { taskCode: task.taskCode },
+  });
+  return task;
+}
+
 function toDelayDays(task: Task): number {
   if (!task.completedAt) return 0;
   const due = new Date(task.dueDate).getTime();

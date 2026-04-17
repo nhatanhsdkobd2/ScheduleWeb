@@ -46,6 +46,7 @@ import {
   createTask,
   createMember,
   createProject,
+  deleteTask,
   deleteMember,
   deleteProject,
   getMembers,
@@ -459,6 +460,7 @@ export default function DashboardClient() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editMember, setEditMember] = useState<Member | null>(null);
   const [taskDrawerOpen, setTaskDrawerOpen] = useState(false);
+  const [taskDeleteConfirmId, setTaskDeleteConfirmId] = useState<string | null>(null);
   const [editTask, setEditTask] = useState<Task | null>(null);
   const taskTitleInputRef = useRef<HTMLInputElement | null>(null);
   const [taskTitleInputKey, setTaskTitleInputKey] = useState(0);
@@ -848,6 +850,13 @@ export default function DashboardClient() {
       }
     },
   });
+  const deleteTaskMutation = useMutation({
+    mutationFn: (taskId: string) => deleteTask(taskId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      setTaskDeleteConfirmId(null);
+    },
+  });
   const createProjectMutation = useMutation({
     mutationFn: (payload: Omit<Project, "id" | "projectCode">) => createProject(payload),
     onSuccess: () => {
@@ -964,6 +973,13 @@ export default function DashboardClient() {
       updateTaskMutation.mutate(args);
     },
     [canEditTask, taskById, updateTaskMutation],
+  );
+  const deleteTaskMutate = useCallback(
+    (taskId: string) => {
+      if (!canMutateTasks) return;
+      setTaskDeleteConfirmId(taskId);
+    },
+    [canMutateTasks],
   );
 
   /** Default IDs for new task creation */
@@ -1152,6 +1168,7 @@ export default function DashboardClient() {
       timelineMonthDays,
       setActiveTaskCell,
       updateTaskMutate,
+      deleteTaskMutate,
       commitProgress,
       commitTaskTitle,
       isTaskRowFlashing,
@@ -1167,6 +1184,7 @@ export default function DashboardClient() {
       assignableMembers,
       timelineMonthDays,
       updateTaskMutate,
+      deleteTaskMutate,
       commitProgress,
       commitTaskTitle,
       isTaskRowFlashing,
@@ -2124,6 +2142,40 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL and redeplo
           </Stack>
         </Box>
       </Drawer>
+
+      <Dialog
+        open={Boolean(taskDeleteConfirmId)}
+        onClose={() => {
+          if (deleteTaskMutation.isPending) return;
+          setTaskDeleteConfirmId(null);
+        }}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle>Delete task</DialogTitle>
+        <DialogContent>
+          <Typography>Are you sure you want to delete this task?</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => setTaskDeleteConfirmId(null)}
+            disabled={deleteTaskMutation.isPending}
+          >
+            Cancel
+          </Button>
+          <Button
+            color="error"
+            variant="contained"
+            disabled={deleteTaskMutation.isPending || !taskDeleteConfirmId}
+            onClick={() => {
+              if (!taskDeleteConfirmId) return;
+              deleteTaskMutation.mutate(taskDeleteConfirmId);
+            }}
+          >
+            {deleteTaskMutation.isPending ? "Deleting..." : "Delete"}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog open={projectDialogOpen} onClose={() => setProjectDialogOpen(false)} fullWidth maxWidth="sm">
         <DialogTitle>{editProject ? "Edit project" : "Add project"}</DialogTitle>
