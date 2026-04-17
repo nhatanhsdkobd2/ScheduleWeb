@@ -21,6 +21,7 @@ const tlWidth = (dayCount: number): number => dayCount * TL_CELL + Math.max(0, d
 
 function TaskTimelineMonthHeader({ timelineMonthDays }: { timelineMonthDays: Date[] }) {
   const theme = useTheme();
+  const isDarkMode = theme.palette.mode === "dark";
   const pitch = tlPitch();
   const w = tlWidth(timelineMonthDays.length);
   const h = TL_CELL;
@@ -29,6 +30,21 @@ function TaskTimelineMonthHeader({ timelineMonthDays }: { timelineMonthDays: Dat
       {timelineMonthDays.map((d, i) => {
         const isWeekend = d.getDay() === 0 || d.getDay() === 6;
         const x = i * pitch;
+        const fillColor = isWeekend
+          ? isDarkMode
+            ? "rgba(220, 38, 38, 0.24)"
+            : "rgba(244,67,54,0.08)"
+          : isDarkMode
+            ? "#0f172a"
+            : "#ffffff";
+        const strokeColor = isDarkMode ? "rgba(148, 163, 184, 0.62)" : theme.palette.grey[300];
+        const textColor = isWeekend
+          ? isDarkMode
+            ? "#fca5a5"
+            : theme.palette.error.light
+          : isDarkMode
+            ? "#e2e8f0"
+            : theme.palette.text.secondary;
         return (
           <g key={`h-${d.toISOString().slice(0, 10)}`}>
             <rect
@@ -37,8 +53,8 @@ function TaskTimelineMonthHeader({ timelineMonthDays }: { timelineMonthDays: Dat
               width={TL_CELL}
               height={h}
               rx={2}
-              fill={isWeekend ? "rgba(244,67,54,0.08)" : "#ffffff"}
-              stroke={theme.palette.grey[300]}
+              fill={fillColor}
+              stroke={strokeColor}
               strokeWidth={1}
             />
             <text
@@ -46,7 +62,7 @@ function TaskTimelineMonthHeader({ timelineMonthDays }: { timelineMonthDays: Dat
               y={8}
               textAnchor="middle"
               fontSize={8}
-              fill={isWeekend ? theme.palette.error.light : theme.palette.text.secondary}
+              fill={textColor}
             >
               {d.getDate()}
             </text>
@@ -79,7 +95,7 @@ function TaskTimelineRowSvgCell({ rowOriginal, days }: { rowOriginal: TaskTableR
   const w = tlWidth(days.length);
   const h = TL_CELL;
   const border = theme.palette.grey[300];
-  const fillDone = invalidRange ? theme.palette.error.light : "rgba(66, 133, 244, 0.82)";
+  const fillDone = invalidRange ? theme.palette.error.light : "rgba(33, 115, 70, 0.82)";
   return (
     <Box sx={{ minWidth: 360, py: 0.5 }}>
       <svg width={w} height={h} style={{ display: "block" }}>

@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f8fafc;
+  --foreground: #0f172a;
 }
 
 @theme inline {
@@ -12,16 +12,68 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+.app-light {
+  color-scheme: light;
+}
+
+.app-dark {
+  --background: #010101;
+  --foreground: #e2e8f0;
+  color-scheme: dark;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: "Aptos", "Segoe UI", Arial, Helvetica, sans-serif;
+}
+
+.app-dark [data-dashboard-root] [class*="bg-white"] {
+  background-color: #111111 !important;
+}
+
+.app-dark [data-dashboard-root] [class*="bg-slate-50"] {
+  background-color: #010101 !important;
+}
+
+.app-dark [data-dashboard-root] [class*="border-slate-200"] {
+  border-color: rgba(148, 163, 184, 0.34) !important;
+}
+
+.app-dark [data-dashboard-root] [class*="text-slate-900"] {
+  color: #f1f5f9 !important;
+}
+
+.app-dark [data-dashboard-root] [class*="text-slate-800"] {
+  color: #e2e8f0 !important;
+}
+
+.app-dark [data-dashboard-root] [class*="text-slate-500"] {
+  color: #94a3b8 !important;
+}
+
+.app-dark [data-dashboard-root] [class*="shadow-sm"] {
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.5) !important;
+}
+
+.app-dark [data-dashboard-root] .MuiOutlinedInput-root {
+  background-color: #111111 !important;
+}
+
+.app-dark [data-dashboard-root] .MuiOutlinedInput-notchedOutline {
+  border-color: rgba(148, 163, 184, 0.42) !important;
+}
+
+.app-dark [data-dashboard-root] .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline {
+  border-color: rgba(148, 163, 184, 0.58) !important;
+}
+
+.app-dark [data-dashboard-root] .MuiInputBase-input,
+.app-dark [data-dashboard-root] .MuiSelect-select {
+  color: #e2e8f0 !important;
+}
+
+.app-dark [data-dashboard-root] .MuiInputLabel-root {
+  color: #94a3b8 !important;
 }
 

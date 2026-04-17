@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
-import { Box, TextField } from "@mui/material";
+import { Box, TextField, useTheme } from "@mui/material";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { PickerDay, type PickerDayProps } from "@mui/x-date-pickers/PickerDay";
 import { format } from "date-fns";
@@ -51,6 +51,8 @@ export const ProgressEditor = memo(function ProgressEditor({
   isDone: boolean;
   onCommit: (taskId: string, value: number, currentProgress: number) => void;
 }) {
+  const theme = useTheme();
+  const isDarkMode = theme.palette.mode === "dark";
   const [draft, setDraft] = useState<string>(String(currentProgress));
   const skipBlurCommitRef = useRef(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -71,6 +73,18 @@ export const ProgressEditor = memo(function ProgressEditor({
   );
 
   const fillPercent = Math.min(100, Math.max(0, Number.isFinite(Number(draft)) ? Number(draft) : currentProgress));
+  const trackBackground = isDarkMode ? "#111111" : "#f1f5f9";
+  const trackBorderColor = isDarkMode ? "rgba(148, 163, 184, 0.42)" : "#d1d5db";
+  const fillBackground = isOverdue
+    ? isDarkMode
+      ? "rgba(220, 38, 38, 0.5)"
+      : "rgba(248, 113, 113, 0.4)"
+    : isDone
+      ? "#217346"
+      : isDarkMode
+        ? "rgba(33, 115, 70, 0.5)"
+        : "rgba(33, 115, 70, 0.32)";
+  const textColor = isDarkMode ? "#f8fafc" : isDone ? "#ffffff" : "#0f172a";
 
   return (
     <Box
@@ -81,8 +95,8 @@ export const ProgressEditor = memo(function ProgressEditor({
         borderRadius: 1,
         overflow: "hidden",
         border: "1px solid",
-        borderColor: "grey.300",
-        bgcolor: "grey.100",
+        borderColor: trackBorderColor,
+        bgcolor: trackBackground,
         "&::before": {
           content: '""',
           position: "absolute",
@@ -90,7 +104,7 @@ export const ProgressEditor = memo(function ProgressEditor({
           top: 0,
           bottom: 0,
           width: `${fillPercent}%`,
-          bgcolor: isOverdue ? "rgba(255, 152, 152, 0.45)" : isDone ? "rgba(129, 199, 132, 0.65)" : "rgba(129, 199, 132, 0.55)",
+          bgcolor: fillBackground,
           transition: "width 120ms ease",
         },
       }}
@@ -103,14 +117,14 @@ export const ProgressEditor = memo(function ProgressEditor({
         InputProps={{ disableUnderline: true }}
         inputProps={{
           readOnly: !canMutate,
-          style: { textAlign: "center", padding: "3px 6px", fontWeight: 600, fontSize: "0.92rem", color: "#000" },
+          style: { textAlign: "center", padding: "3px 6px", fontWeight: 700, fontSize: "0.86rem", color: textColor },
         }}
         sx={{
           position: "absolute",
           inset: 0,
           zIndex: 1,
           "& .MuiInputBase-root": { height: "100%" },
-          "& input": { color: "#000 !important" },
+          "& input": { color: `${textColor} !important` },
         }}
         onFocus={() => {
           if (!canMutate) {

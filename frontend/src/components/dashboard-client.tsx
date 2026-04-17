@@ -17,18 +17,20 @@ import {
   FormControlLabel,
   Grid,
   IconButton,
-  InputAdornment,
   Menu,
   MenuItem,
+  Switch,
   Stack,
   TextField,
   Toolbar,
   Tooltip as MuiTooltip,
   Typography,
+  useTheme,
 } from "@mui/material";
 import { useMemo, useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
+import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { AnimatePresence, LayoutGroup, motion } from "framer-motion";
 import {
@@ -84,6 +86,7 @@ import { format } from "date-fns";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { useAppTheme } from "@/components/app-theme-provider";
 import { isAppAdminEmail } from "@/lib/app-admin";
 import { mergeTasksPreserveRefs } from "@/lib/task-merge";
 import { tasksToInfiniteData } from "@/lib/task-infinite-data";
@@ -178,57 +181,114 @@ function DateFilterField({
   onChange: (value: string) => void;
   minWidth?: number;
 }) {
-  const inputRef = useRef<HTMLInputElement | null>(null);
+  const theme = useTheme();
+  const isDarkMode = theme.palette.mode === "dark";
+  const pickerValue = value ? new Date(`${value}T00:00:00`) : null;
   return (
-    <TextField
+    <DatePicker
       label={label}
-      size="small"
-      type="date"
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      InputLabelProps={{ shrink: true }}
-      inputRef={inputRef}
-      InputProps={{
-        endAdornment: (
-          <InputAdornment position="end">
-            <Box
-              component="button"
-              type="button"
-              aria-label={`Open ${label} calendar`}
-              className="text-slate-400 transition-colors duration-300 hover:text-slate-600"
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => {
-                const input = inputRef.current;
-                if (!input) return;
-                if (typeof input.showPicker === "function") {
-                  input.showPicker();
-                } else {
-                  input.focus();
-                }
-              }}
-              sx={{ border: 0, background: "transparent", p: 0, cursor: "pointer", lineHeight: 1 }}
-            >
-              📅
-            </Box>
-          </InputAdornment>
-        ),
+      value={pickerValue}
+      format="dd/MM/yyyy"
+      reduceAnimations={false}
+      onChange={(next) => {
+        if (!next || Number.isNaN(next.getTime())) {
+          onChange("");
+          return;
+        }
+        onChange(format(next, "yyyy-MM-dd"));
       }}
-      sx={{
-        minWidth,
-        "& .MuiOutlinedInput-root": {
-          borderRadius: "12px",
-          backgroundColor: "#fff",
-          transition: "all 300ms",
+      slotProps={{
+        textField: {
+          size: "small",
+          sx: {
+            minWidth,
+            "& .MuiOutlinedInput-root": {
+              borderRadius: "12px",
+              backgroundColor: "#fff",
+              transition: "all 300ms",
+            },
+            "& .MuiInputAdornment-root .MuiIconButton-root": {
+              color: "#217346",
+            },
+            "& .MuiInputAdornment-root .MuiSvgIcon-root": {
+              color: "#217346",
+            },
+            "& fieldset": { borderColor: "#e5e7eb" },
+            "& .MuiOutlinedInput-root:hover fieldset": { borderColor: "#cbd5e1" },
+          },
         },
-        "& input[type='date']::-webkit-calendar-picker-indicator": {
-          opacity: 0,
-          position: "absolute",
-          right: 0,
-          width: 0,
-          pointerEvents: "none",
+        popper: {
+          placement: "bottom-start",
+          sx: {
+            "& .MuiPaper-root": {
+              borderRadius: "16px",
+              border: "1px solid rgba(148, 163, 184, 0.22)",
+              boxShadow:
+                "0 20px 40px rgba(15, 23, 42, 0.14), 0 4px 12px rgba(15, 23, 42, 0.1)",
+              backdropFilter: "blur(8px)",
+              overflow: "hidden",
+              color: isDarkMode ? "#e2e8f0" : "#0f172a",
+            },
+            "& .MuiPickersCalendarHeader-root": {
+              px: 2,
+              pt: 1.5,
+            },
+            "& .MuiPickersCalendarHeader-label": {
+              fontWeight: 700,
+              fontSize: "1.05rem",
+              color: isDarkMode ? "#f1f5f9" : "#0f172a",
+            },
+            "& .MuiPickersArrowSwitcher-root .MuiIconButton-root": {
+              borderRadius: "10px",
+              transition: "background-color 180ms ease, transform 180ms ease",
+              color: isDarkMode ? "#f8fafc" : "#0f172a",
+            },
+            "& .MuiPickersArrowSwitcher-root .MuiIconButton-root:hover": {
+              backgroundColor: "rgba(33, 115, 70, 0.1)",
+              transform: "translateY(-1px)",
+            },
+          },
         },
-        "& fieldset": { borderColor: "#e5e7eb" },
-        "& .MuiOutlinedInput-root:hover fieldset": { borderColor: "#cbd5e1" },
+        desktopPaper: {
+          sx: {
+            animation: "datePickerSmoothIn 260ms cubic-bezier(0.2, 0.8, 0.2, 1)",
+            transformOrigin: "top left",
+            "@keyframes datePickerSmoothIn": {
+              "0%": {
+                opacity: 0,
+                transform: "translateY(8px) scale(0.985)",
+              },
+              "100%": {
+                opacity: 1,
+                transform: "translateY(0) scale(1)",
+              },
+            },
+            "& .MuiDayCalendar-weekDayLabel": {
+              color: isDarkMode ? "#94a3b8" : "#475569",
+              fontWeight: 700,
+              fontSize: "0.78rem",
+            },
+            "& .MuiPickersDay-root": {
+              borderRadius: "10px",
+              fontWeight: 600,
+              transition: "all 140ms ease",
+              color: isDarkMode ? "#f8fafc" : "#0f172a",
+            },
+            "& .MuiPickersDay-root:hover": {
+              backgroundColor: "rgba(33, 115, 70, 0.12)",
+            },
+            "& .MuiPickersDay-root.Mui-selected": {
+              backgroundColor: "#217346",
+              boxShadow: "0 6px 16px rgba(33, 115, 70, 0.28)",
+            },
+            "& .MuiPickersDay-root.Mui-selected:hover": {
+              backgroundColor: "#185c37",
+            },
+            "& .MuiPickersDay-root.MuiPickersDay-today:not(.Mui-selected)": {
+              border: "1px solid rgba(33, 115, 70, 0.42)",
+            },
+          },
+        },
       }}
     />
   );
@@ -365,6 +425,8 @@ function emailLocalPartFromInput(rawEmail: string): string {
 
 function AppHeaderAuth() {
   const { user, loading, signOutUser } = useAuth();
+  const { isDark, toggleTheme } = useAppTheme();
+  const theme = useTheme();
   const [settingsAnchorEl, setSettingsAnchorEl] = useState<HTMLElement | null>(null);
   const settingsOpen = Boolean(settingsAnchorEl);
   if (loading) {
@@ -415,7 +477,12 @@ function AppHeaderAuth() {
             component="img"
             src="/icon-settings.png"
             alt="Settings"
-            sx={{ width: 22, height: 22, display: "block" }}
+            sx={{
+              width: 22,
+              height: 22,
+              display: "block",
+              filter: isDark ? "brightness(0) invert(1)" : "none",
+            }}
           />
         </IconButton>
       </MuiTooltip>
@@ -432,19 +499,48 @@ function AppHeaderAuth() {
             sx: {
               mt: 1,
               borderRadius: 2,
-              minWidth: 190,
-              boxShadow: "0 10px 24px rgba(15,23,42,0.18)",
+              minWidth: 220,
+              border: `1px solid ${theme.palette.mode === "dark" ? "rgba(148,163,184,0.28)" : "rgba(148,163,184,0.2)"}`,
+              boxShadow:
+                theme.palette.mode === "dark"
+                  ? "0 18px 36px rgba(2,6,23,0.52)"
+                  : "0 12px 28px rgba(15,23,42,0.18)",
             },
           },
         }}
       >
+        <MenuItem
+          onClick={() => {
+            toggleTheme();
+          }}
+          sx={{ py: 1, gap: 1 }}
+        >
+          <Typography variant="body2">{isDark ? "Dark mode" : "Light mode"}</Typography>
+          <Box sx={{ flexGrow: 1 }} />
+          <Switch
+            edge="end"
+            checked={isDark}
+            onChange={() => toggleTheme()}
+            onClick={(event) => event.stopPropagation()}
+            inputProps={{ "aria-label": "Toggle light or dark theme" }}
+          />
+        </MenuItem>
         <MenuItem
           component={Link}
           href="/change-password"
           onClick={() => setSettingsAnchorEl(null)}
           sx={{ py: 1.2, gap: 1 }}
         >
-          <Box component="img" src="/icon-change-password.png" alt="" sx={{ width: 18, height: 18 }} />
+          <Box
+            component="img"
+            src="/icon-change-password.png"
+            alt=""
+            sx={{
+              width: 18,
+              height: 18,
+              filter: isDark ? "brightness(0) invert(1)" : "none",
+            }}
+          />
           <Typography variant="body2">Change password</Typography>
         </MenuItem>
         <MenuItem
@@ -454,7 +550,16 @@ function AppHeaderAuth() {
           }}
           sx={{ py: 1.2, gap: 1 }}
         >
-          <Box component="img" src="/icon-logout.png" alt="" sx={{ width: 18, height: 18 }} />
+          <Box
+            component="img"
+            src="/icon-logout.png"
+            alt=""
+            sx={{
+              width: 18,
+              height: 18,
+              filter: isDark ? "brightness(0) invert(1)" : "none",
+            }}
+          />
           <Typography variant="body2">Logout</Typography>
         </MenuItem>
       </Menu>
@@ -463,6 +568,8 @@ function AppHeaderAuth() {
 }
 
 export default function DashboardClient() {
+  const theme = useTheme();
+  const isDarkMode = theme.palette.mode === "dark";
   const queryClient = useQueryClient();
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
@@ -1334,35 +1441,58 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL and redeplo
         <Box sx={{ width: "100%", display: "flex", justifyContent: "flex-end" }}>
           {canManageMembers ? (
             <Stack direction="row" spacing={1}>
-              <Button
-                size="small"
-                onClick={() => {
-                  if (!canManageMembers) return;
-                  setEditMember(row.original);
-                  setMemberForm({
-                    fullName: row.original.fullName,
-                    email: row.original.email,
-                    role: row.original.role,
-                    team: row.original.team,
-                    status: row.original.status,
-                  });
-                  setMemberFormInputKey((k) => k + 1);
-                  setMemberErrors({});
-                  setDialogOpen(true);
-                }}
-              >
-                Edit
-              </Button>
-              <Button
-                size="small"
-                color="error"
-                onClick={() => {
-                  if (!canManageMembers) return;
-                  deleteMemberMutation.mutate(row.original.id);
-                }}
-              >
-                Delete
-              </Button>
+              <MuiTooltip title="Edit member" arrow>
+                <IconButton
+                  size="small"
+                  aria-label="Edit member"
+                  sx={{ p: 0.5 }}
+                  onClick={() => {
+                    if (!canManageMembers) return;
+                    setEditMember(row.original);
+                    setMemberForm({
+                      fullName: row.original.fullName,
+                      email: row.original.email,
+                      role: row.original.role,
+                      team: row.original.team,
+                      status: row.original.status,
+                    });
+                    setMemberFormInputKey((k) => k + 1);
+                    setMemberErrors({});
+                    setDialogOpen(true);
+                  }}
+                >
+                  <Box
+                    component="img"
+                    src="/icon-edit.png"
+                    alt="Edit member"
+                    sx={{
+                      width: 18,
+                      height: 18,
+                      display: "block",
+                      filter: isDarkMode ? "brightness(0) invert(1)" : "none",
+                    }}
+                  />
+                </IconButton>
+              </MuiTooltip>
+              <MuiTooltip title="Delete member" arrow>
+                <IconButton
+                  size="small"
+                  color="error"
+                  onClick={() => {
+                    if (!canManageMembers) return;
+                    deleteMemberMutation.mutate(row.original.id);
+                  }}
+                  aria-label="Delete member"
+                  sx={{ p: 0.5 }}
+                >
+                  <Box
+                    component="img"
+                    src="/icon-task-delete.png"
+                    alt="Delete member"
+                    sx={{ width: 18, height: 18, display: "block" }}
+                  />
+                </IconButton>
+              </MuiTooltip>
             </Stack>
           ) : (
             <Typography variant="body2" color="text.secondary">
@@ -1387,33 +1517,56 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL and redeplo
         <Box sx={{ width: "100%", display: "flex", justifyContent: "flex-end" }}>
           {canManageProjects ? (
             <Stack direction="row" spacing={1}>
-              <Button
-                size="small"
-                onClick={() => {
-                  if (!canManageProjects) return;
-                  setEditProject(row.original);
-                  setProjectForm({
-                    name: row.original.name,
-                    description: row.original.description ?? "",
-                    status: row.original.status,
-                  });
-                  setProjectFormInputKey((k) => k + 1);
-                  setProjectErrors({});
-                  setProjectDialogOpen(true);
-                }}
-              >
-                Edit
-              </Button>
-              <Button
-                size="small"
-                color="error"
-                onClick={() => {
-                  if (!canManageProjects) return;
-                  deleteProjectMutation.mutate(row.original.id);
-                }}
-              >
-                Delete
-              </Button>
+              <MuiTooltip title="Edit project" arrow>
+                <IconButton
+                  size="small"
+                  aria-label="Edit project"
+                  sx={{ p: 0.5 }}
+                  onClick={() => {
+                    if (!canManageProjects) return;
+                    setEditProject(row.original);
+                    setProjectForm({
+                      name: row.original.name,
+                      description: row.original.description ?? "",
+                      status: row.original.status,
+                    });
+                    setProjectFormInputKey((k) => k + 1);
+                    setProjectErrors({});
+                    setProjectDialogOpen(true);
+                  }}
+                >
+                  <Box
+                    component="img"
+                    src="/icon-edit.png"
+                    alt="Edit project"
+                    sx={{
+                      width: 18,
+                      height: 18,
+                      display: "block",
+                      filter: isDarkMode ? "brightness(0) invert(1)" : "none",
+                    }}
+                  />
+                </IconButton>
+              </MuiTooltip>
+              <MuiTooltip title="Delete project" arrow>
+                <IconButton
+                  size="small"
+                  color="error"
+                  onClick={() => {
+                    if (!canManageProjects) return;
+                    deleteProjectMutation.mutate(row.original.id);
+                  }}
+                  aria-label="Delete project"
+                  sx={{ p: 0.5 }}
+                >
+                  <Box
+                    component="img"
+                    src="/icon-task-delete.png"
+                    alt="Delete project"
+                    sx={{ width: 18, height: 18, display: "block" }}
+                  />
+                </IconButton>
+              </MuiTooltip>
             </Stack>
           ) : (
             <Typography variant="body2" color="text.secondary">
@@ -1424,6 +1577,7 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL and redeplo
       ),
     },
   ];
+
   const mainTabs = [
     { id: 0, label: "Dashboard" },
     { id: 1, label: "Members" },
@@ -1434,7 +1588,7 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL and redeplo
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
-    <Box sx={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+    <Box data-dashboard-root sx={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <AppBar position="static" color="inherit" elevation={0}>
           <Toolbar className="border-b border-slate-200/80 bg-white/95 backdrop-blur" sx={{ justifyContent: "space-between" }}>
@@ -1540,8 +1694,8 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL and redeplo
                             bottom: 2,
                             height: 3,
                             borderRadius: 999,
-                            background: "#2563eb",
-                            boxShadow: "0 0 0 1px rgba(37, 99, 235, 0.08)",
+                            background: "#217346",
+                            boxShadow: "0 0 0 1px rgba(33, 115, 70, 0.12)",
                           }}
                         />
                       ) : null}
@@ -1784,7 +1938,7 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL and redeplo
                 <Grid container spacing={2.5}>
                   <Grid size={{ xs: 12 }}>
                     <Box
-                      className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-300 hover:shadow-md"
+                      className="rounded-2xl bg-white p-5 shadow-sm transition-all duration-300 hover:shadow-md"
                       sx={{ minHeight: memberChartCardHeight }}
                     >
                       <Typography variant="h6" className="mb-4 font-semibold text-slate-800">
@@ -1796,18 +1950,17 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL and redeplo
                           data={safeArray<Record<string, unknown>>(performanceChartData)}
                           margin={{ top: 8, right: 24, left: 180, bottom: 8 }}
                         >
-                          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                          <XAxis type="number" tick={{ fill: "#64748b", fontSize: 12 }} axisLine={{ stroke: "#e2e8f0" }} tickLine={{ stroke: "#e2e8f0" }} />
+                          <XAxis type="number" tick={{ fill: "#64748b", fontSize: 12 }} axisLine={false} tickLine={false} />
                           <YAxis type="category" dataKey="name" width={165} tick={{ fontSize: 12, fill: "#475569" }} axisLine={false} tickLine={false} />
                           <Tooltip />
-                          <Bar dataKey="score" fill="#10b981" radius={[0, 8, 8, 0]} />
+                          <Bar dataKey="score" fill="#DC2626" radius={[0, 8, 8, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     </Box>
                   </Grid>
                   <Grid size={{ xs: 12 }}>
                     <Box
-                      className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-300 hover:shadow-md"
+                      className="rounded-2xl bg-white p-5 shadow-sm transition-all duration-300 hover:shadow-md"
                       sx={{ minHeight: memberChartCardHeight }}
                     >
                       <Typography variant="h6" className="mb-4 font-semibold text-slate-800">
@@ -1819,11 +1972,10 @@ If using production: set NEXT_PUBLIC_API_BASE_URL to your Render URL and redeplo
                           data={safeArray<Record<string, unknown>>(workloadByMember)}
                           margin={{ top: 8, right: 24, left: 180, bottom: 8 }}
                         >
-                          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                          <XAxis type="number" tick={{ fill: "#64748b", fontSize: 12 }} axisLine={{ stroke: "#e2e8f0" }} tickLine={{ stroke: "#e2e8f0" }} />
+                          <XAxis type="number" tick={{ fill: "#64748b", fontSize: 12 }} axisLine={false} tickLine={false} />
                           <YAxis type="category" dataKey="name" width={165} tick={{ fontSize: 12, fill: "#475569" }} axisLine={false} tickLine={false} />
                           <Tooltip />
-                          <Bar dataKey="tasks" fill="#2563eb" radius={[0, 8, 8, 0]} />
+                          <Bar dataKey="tasks" fill="#217346" radius={[0, 8, 8, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     </Box>
